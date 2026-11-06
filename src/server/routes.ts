@@ -1,9 +1,8 @@
 // JSON API. Each handler returns data; errors become {error} with a status code.
-import { activatePolicy, decide, draftPolicyFor, onPayPalReturn, openEnvelope, proposeIntent, runAgent, voidEnvelope, UserError } from "../app/commerce.js";
+import { activatePolicy, decide, draftPolicyFor, onPayPalReturn, openEnvelope, runAgent, voidEnvelope, UserError } from "../app/commerce.js";
 import { advanceClock, buyerCaseFor, fileBuyerDispute, merchantCases, reportDamage, setShipPlan, simulateDecision, submitMerchantResponse } from "../app/disputes.js";
 import type { Session } from "../app/session.js";
 import { previewSplit, sendSplitInvoices } from "../app/split.js";
-import { parseMoney } from "../domain/money.js";
 import type { ShipPlan } from "../domain/orders.js";
 import type { Member } from "../domain/split.js";
 import { snapshot } from "./snapshot.js";
@@ -30,17 +29,6 @@ export const routes: Array<[string, RegExp, Handler]> = [
   ["POST", /^\/api\/agent\/run$/, async (s, b) => {
     const r = await runAgent(s, str(b.goal, 300), source(b.source));
     return { ...snapshot(s), run: { candidates: r.candidates.map((o) => ({ id: o.id, title: o.title, price: o.price, merchant: o.merchant.name })), intentId: r.record?.intent.id ?? null, ms: r.ms } };
-  }],
-  // Lets a test or a scripted scene propose an exact purchase, e.g. an agent that misstates a price.
-  ["POST", /^\/api\/intents$/, async (s, b) => {
-    const offerId = str(b.offerId, 200);
-    const offer = await s.catalogFor(source(b.source)).get(offerId);
-    const claimed = b.claimedPrice != null && offer ? parseMoney(str(String(b.claimedPrice), 20), offer.price.currency) : null;
-    const rec = await proposeIntent(s, {
-      offerId, quantity: Math.trunc(num(b.quantity) || 1), goal: str(b.goal, 300) || "scripted purchase",
-      agentReason: str(b.reason, 300) || "scripted", claimedUnitPrice: claimed?.ok ? claimed.money : offer?.price ?? { currency: "USD", minor: 0 },
-    }, source(b.source), "script");
-    return { ...snapshot(s), intentId: rec.intent.id };
   }],
   ["POST", /^\/api\/intents\/([\w-]+)\/decide$/, async (s, b, [id]) => { await decide(s, id!, b.decision === "approve" ? "approve" : "reject"); return snapshot(s); }],
   ["POST", /^\/api\/ship-plan$/, async (s, b) => {

@@ -35,6 +35,7 @@ export interface Policy {
   hours: { start: string; end: string; tz: string } | null;
   maxDeliveryDays: number | null;
   requireReturns: boolean;
+  tz: string; // the day boundary for the daily cap
 }
 
 export interface CompileResult {
@@ -129,16 +130,20 @@ export function compilePolicy(raw: PolicyDraftRaw, sourceText: string, tz: strin
       blockedCategories: blocked,
       minMerchantTrust: TRUST_LEVEL[raw.merchant_trust ?? "established"],
       unknownMerchant: raw.unknown_merchant ?? "ask",
-      trustedMerchants: (raw.trusted_merchants ?? []).map((s) => s.toLowerCase()),
-      blockedMerchants: (raw.blocked_merchants ?? []).map((s) => s.toLowerCase()),
+      trustedMerchants: cleanList(raw.trusted_merchants),
+      blockedMerchants: cleanList(raw.blocked_merchants),
       hours,
       maxDeliveryDays: delivery ?? null,
       requireReturns: raw.require_returns ?? false,
+      tz,
     },
     questions,
     warnings,
   };
 }
+
+// Blank entries would match every store, so they are dropped.
+const cleanList = (l: string[] | null | undefined) => (l ?? []).map((s) => s.trim().toLowerCase()).filter((s) => s.length >= 3);
 
 /** Every number the person actually typed, canonicalized ("1,200.00" -> "1200"). */
 export function numbersIn(text: string): Set<string> {

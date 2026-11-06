@@ -74,7 +74,8 @@ const SCENARIOS: Scenario[] = [
     return (await buy(s, idOf("Aurora"))).gate.verdict;
   }, "ASK"],
   ["13 delivery slower than allowed", async () => (await buy(await setup("Up to $150 per purchase and $250 a day. Deliveries within 7 days."), "x-slow")).gate.verdict, "ASK"],
-  ["14 yen item under a dollar policy", async () => (await buy(await setup(STD), "x-jpy")).gate.verdict, "ASK"],
+  // Changed after review: an item in another currency is refused (caps can't be checked), not asked.
+  ["14 yen item under a dollar policy", async () => (await buy(await setup(STD), "x-jpy")).gate.verdict, "DENY"],
   ["15 budget runs out -> second purchase needs its own approval", async () => {
     const s = await setup(STD, "150");
     await buy(s, idOf("Aurora"));
@@ -144,6 +145,36 @@ const SCENARIOS: Scenario[] = [
     const r = await runAgent(s, "noise-cancelling headphones for my commute", "demo");
     return `${r.record?.gate.verdict}/${r.record?.status}`;
   }, "ALLOW/paid"],
+  // Added after the independent review, as regressions for the bugs it found.
+  ["25 checkouts waiting for PayPal count against the daily cap", async () => {
+    const s = await setup("Up to $150 per purchase and $250 a day.");
+    const out = [];
+    for (let k = 0; k < 3; k++) out.push((await buy(s, idOf("Aurora"))).status);
+    return out.join(",");
+  }, "awaiting_paypal,denied,denied"],
+  ["26 reloading the PayPal return URL records one order", async () => {
+    const s = await setup(STD);
+    const r = await buy(s, idOf("Aurora"));
+    s.sim!.approve(r.checkoutOrderId!);
+    await onPayPalReturn(s, r.checkoutOrderId!);
+    await onPayPalReturn(s, r.checkoutOrderId!);
+    return String(s.orders.length);
+  }, "1"],
+  ["27 approving an old ASK after the cap was used up is refused", async () => {
+    const s = await setup("Up to $150 per purchase and $200 a day.", "200");
+    const ask = await buy(s, "x-inj-1"); // $88, asks
+    await buy(s, idOf("Aurora")); // $129, paid
+    try { await decide(s, ask.intent.id, "approve"); return s.intents.get(ask.intent.id)!.status; } catch { return s.intents.get(ask.intent.id)!.status; }
+  }, "denied"],
+  ["28 another visitor can't act on my dispute", async () => {
+    const s = await setup(STD, "200");
+    await buy(s, idOf("Aurora"));
+    advanceClock(s, 6);
+    setShipPlan(s, s.orders[0]!.id, "stalled");
+    const f = (await fileBuyerDispute(s, s.orders[0]!.id, "Never arrived.")) as { dispute: { id: string } };
+    const other = await setup(STD);
+    try { await submitMerchantResponse(other, f.dispute.id, "ACCEPT_CLAIM", "x"); return "ACTED"; } catch { return "REFUSED"; }
+  }, "REFUSED"],
 ];
 
 const rows: Array<{ name: string; got: string; want: string; ok: boolean; ms: number }> = [];

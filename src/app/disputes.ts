@@ -79,13 +79,13 @@ export interface MerchantCaseView {
 export async function merchantCases(s: Session): Promise<{ cases: MerchantCaseView[]; error: string | null; hidden?: number }> {
   let disputes: Dispute[];
   try {
-    disputes = await s.paypal.listDisputes();
+    disputes = await s.paypal.listDisputes(s.orders.map((o) => o.paypal.captureId));
   } catch (err) {
     return { cases: [], error: `Couldn't read disputes: ${errText(err)}` }; // shown, not treated as "no disputes"
   }
   // The sandbox merchant account is shared by every visitor of a hosted demo:
-  // show only disputes on this session's own captures.
-  const mine = s.sim ? disputes : disputes.filter((d) => s.orders.some((o) => d.captureIds.includes(o.paypal.captureId)));
+  // only disputes on this session's own captures are shown or actionable.
+  const mine = disputes.filter((d) => ownDispute(s, d));
   const hidden = disputes.length - mine.length;
   const cases = await Promise.all(mine.map(async (d) => {
     const o = s.orders.find((x) => d.captureIds.includes(x.paypal.captureId)) ?? null;
@@ -96,8 +96,16 @@ export async function merchantCases(s: Session): Promise<{ cases: MerchantCaseVi
   return { cases, error: null, hidden };
 }
 
-export async function submitMerchantResponse(s: Session, disputeId: string, action: MerchantAction, note: string) {
+const ownDispute = (s: Session, d: Dispute) => s.orders.some((o) => d.captureIds.includes(o.paypal.captureId));
+
+async function myDispute(s: Session, disputeId: string): Promise<Dispute> {
   const d = await s.paypal.getDispute(disputeId);
+  if (!ownDispute(s, d)) throw new UserError("That dispute isn't on one of your orders.");
+  return d;
+}
+
+export async function submitMerchantResponse(s: Session, disputeId: string, action: MerchantAction, note: string) {
+  const d = await myDispute(s, disputeId);
   const o = s.orders.find((x) => d.captureIds.includes(x.paypal.captureId)) ?? null;
   const c = merchantCase(d, o, s.now());
   if (c.blocked) throw new UserError(`Can't submit: ${c.rationale}`);
@@ -108,10 +116,11 @@ export async function submitMerchantResponse(s: Session, disputeId: string, acti
     if (action === "PROVIDE_FULFILLMENT" && o) {
       await s.paypal.provideEvidence(disputeId, { type: "PROOF_OF_FULFILLMENT", note, tracking: { carrier: o.shipment.carrier, trackingNumber: o.shipment.trackingNumber } });
     } else if (action === "PROVIDE_REFUND_PROOF" && o) {
-      await s.paypal.provideEvidence(disputeId, { type: "PROOF_OF_REFUND", note, refundIds: o.refunds.map((r) => r.id) });
+      // Only real PayPal refund IDs count as proof; dispute-driven refunds have none of their own.
+      await s.paypal.provideEvidence(disputeId, { type: "PROOF_OF_REFUND", note, refundIds: o.refunds.filter((r) => r.fromPayPal).map((r) => r.id) });
     } else if (action === "ACCEPT_CLAIM") {
       await s.paypal.acceptClaim(disputeId, note, null);
-      if (o && d.amount) o.refunds.push({ id: `claim-${disputeId}`, amount: d.amount, at: s.now().toISOString() });
+      if (o && d.amount) o.refunds.push({ id: `claim-${disputeId}`, amount: d.amount, at: s.now().toISOString(), fromPayPal: false });
     } else if (action === "OFFER_REFUND_WITH_RETURN" && o) {
       await s.paypal.makeOffer(disputeId, note, remaining(o), "REFUND_WITH_RETURN");
     } else throw new UserError("Nothing to submit for this case.");
@@ -125,10 +134,11 @@ export async function submitMerchantResponse(s: Session, disputeId: string, acti
 }
 
 export async function simulateDecision(s: Session, disputeId: string, outcome: "BUYER_FAVOR" | "SELLER_FAVOR") {
+  await myDispute(s, disputeId);
   await s.paypal.simulateAdjudicate(disputeId, outcome);
   s.log("paypal", "sandbox adjudication", { dispute: disputeId, outcome });
   const d = await s.paypal.getDispute(disputeId);
   const o = s.orders.find((x) => d.captureIds.includes(x.paypal.captureId));
-  if (o && outcome === "BUYER_FAVOR" && d.amount) o.refunds.push({ id: `adj-${randomUUID().slice(0, 6)}`, amount: d.amount, at: s.now().toISOString() });
+  if (o && outcome === "BUYER_FAVOR" && d.amount) o.refunds.push({ id: `adj-${randomUUID().slice(0, 6)}`, amount: d.amount, at: s.now().toISOString(), fromPayPal: false });
   return d;
 }

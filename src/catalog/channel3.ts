@@ -3,7 +3,7 @@
 // fresh re-check of price and stock right before money moves.
 // Channel3 has no seller-reputation fields, so trust signals stay empty and the
 // gate treats those stores as "unknown" (it asks rather than inventing a score).
-import { parseMoney } from "../domain/money.js";
+import { currencyInfo, parseMoney } from "../domain/money.js";
 import type { Catalog, Offer } from "./types.js";
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -42,8 +42,12 @@ export class Channel3Catalog implements Catalog {
 export function toOffers(p: Json): Offer[] {
   const img = ((p.images ?? []) as Json[]).find((i) => i.is_main_image) ?? p.images?.[0];
   return ((p.offers ?? []) as Json[]).flatMap((o): Offer[] => {
-    const parsed = parseMoney(Number(o.price?.price).toFixed(2), String(o.price?.currency ?? ""));
-    if (!parsed.ok) return [];
+    const cur = String(o.price?.currency ?? "");
+    const parsed = parseMoney(Number(o.price?.price).toFixed(currencyInfo(cur || "USD").decimals), cur);
+    if (!parsed.ok) {
+      console.warn(`Channel3 offer skipped (unreadable price ${o.price?.price} ${cur}) for product ${p.id}`);
+      return [];
+    }
     return [{
       id: `${p.id}~${o.domain}`,
       title: String(p.title ?? "Untitled"),

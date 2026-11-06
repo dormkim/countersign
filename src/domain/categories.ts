@@ -40,14 +40,19 @@ export function normalizeCategory(raw: string | null | undefined): Category | nu
   return null;
 }
 
+/** Every category named in free text, matched on whole words ("carpet" is not "pet"). */
+export function categoriesIn(text: string): Category[] {
+  const lower = text.toLowerCase().replace(/[_-]+/g, " ");
+  const found = new Set<Category>();
+  const has = (w: string) => new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}s?\\b`).test(lower);
+  for (const c of CATEGORIES) if (has(c.replace("_", " "))) found.add(c);
+  for (const [word, c] of Object.entries(SYNONYMS)) if (has(word)) found.add(c);
+  return [...found];
+}
+
 /** Best-effort placement of free text (e.g. a Channel3 category path). */
 export function categoryFromText(text: string): Category | null {
-  const lower = text.toLowerCase();
-  for (const c of CATEGORIES) if (lower.includes(c.replace("_", " "))) return c;
-  for (const [word, c] of Object.entries(SYNONYMS)) {
-    if (new RegExp(`\\b${word}\\b`).test(lower)) return c;
-  }
-  return null;
+  return categoriesIn(text)[0] ?? null;
 }
 
 export const categoryLabel = (c: string): string => c.replace(/_/g, " ");

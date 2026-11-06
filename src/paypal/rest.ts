@@ -9,12 +9,20 @@ import {
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
+// Fictional demo-store return address (the sandbox merchant is a demo store).
+const RETURN_ADDRESS = { address_line_1: "100 Demo Street", admin_area_2: "Oakland", admin_area_1: "CA", postal_code: "94607", country_code: "US" };
+
 const amountJson = (m: Money) => ({ currency_code: m.currency, value: toPayPalValue(m) });
 const moneyOf = (j: Json | undefined): Money | null => {
   if (!j?.currency_code || j.value == null) return null;
   const p = parseMoney(j.value, j.currency_code);
   return p.ok ? p.money : null;
 };
+
+function need(m: Money | null, j: Json): Money {
+  if (!m) throw new PayPalError("PayPal response had no usable amount", 502, null, j.debug_id ?? null, j);
+  return m;
+}
 
 export class SandboxPayPal implements PayPalPort {
   readonly mode = "sandbox" as const;
@@ -48,7 +56,12 @@ export class SandboxPayPal implements PayPalPort {
     else if (body) { headers["Content-Type"] = "application/json"; payload = JSON.stringify(body); }
     const res = await fetch(`${this.base}${path}`, { method, headers, body: payload, signal: AbortSignal.timeout(20_000) });
     const text = await res.text();
-    const j = (text ? JSON.parse(text) : {}) as Json;
+    let j: Json;
+    try {
+      j = (text ? JSON.parse(text) : {}) as Json;
+    } catch {
+      throw new PayPalError(`HTTP_${res.status}: non-JSON response ${text.slice(0, 120)}`, res.status, null, res.headers.get("paypal-debug-id"), null);
+    }
     if (!res.ok) {
       const issue = j.details?.[0]?.issue ?? j.name ?? `HTTP_${res.status}`;
       const desc = j.details?.[0]?.description ?? j.message ?? text.slice(0, 200);
@@ -81,14 +94,14 @@ export class SandboxPayPal implements PayPalPort {
     const j = await this.call("POST", `/v2/checkout/orders/${orderId}/authorize`, {}, requestId);
     const a = j.purchase_units?.[0]?.payments?.authorizations?.[0];
     if (!a) throw new PayPalError("authorize returned no authorization", 502, null, j.debug_id ?? null, j);
-    return { authorizationId: a.id, status: a.status, amount: moneyOf(a.amount)!, expiresAt: a.expiration_time ?? null };
+    return { authorizationId: a.id, status: a.status, amount: need(moneyOf(a.amount), j), expiresAt: a.expiration_time ?? null };
   }
 
   async captureOrder(orderId: string, requestId: string): Promise<CaptureRef> {
     const j = await this.call("POST", `/v2/checkout/orders/${orderId}/capture`, {}, requestId);
     const c = j.purchase_units?.[0]?.payments?.captures?.[0];
     if (!c) throw new PayPalError("capture returned no capture", 502, null, j.debug_id ?? null, j);
-    return { captureId: c.id, status: c.status, amount: moneyOf(c.amount)! };
+    return { captureId: c.id, status: c.status, amount: need(moneyOf(c.amount), j) };
   }
 
   async captureAuthorization(authId: string, amount: Money, finalCapture: boolean, invoiceId: string, requestId: string): Promise<CaptureRef> {
@@ -126,10 +139,16 @@ export class SandboxPayPal implements PayPalPort {
     };
   }
 
-  async listDisputes(): Promise<Dispute[]> {
-    const j = await this.call("GET", "/v1/customer/disputes?page_size=20");
+  async listDisputes(captureIds: string[]): Promise<Dispute[]> {
+    // Query per capture: the sandbox merchant account is shared, so a global
+    // "latest 20" list could push a visitor's own dispute out of view.
+    const ids = new Set<string>();
+    for (const c of captureIds.slice(0, 20)) {
+      const j = await this.call("GET", `/v1/customer/disputes?disputed_transaction_id=${encodeURIComponent(c)}`);
+      for (const d of (j.items ?? []) as Json[]) ids.add(d.dispute_id);
+    }
     // The list returns summaries; fetch details so captures and deadlines are present.
-    return Promise.all(((j.items ?? []) as Json[]).map((d) => this.getDispute(d.dispute_id)));
+    return Promise.all([...ids].map((id) => this.getDispute(id)));
   }
 
   async getDispute(id: string): Promise<Dispute> {
@@ -139,8 +158,10 @@ export class SandboxPayPal implements PayPalPort {
   async provideEvidence(id: string, e: EvidenceInput): Promise<void> {
     // multipart/form-data with a JSON part named "input", as in PayPal's provide-evidence examples.
     const evidence: Json = { evidence_type: e.type, notes: e.note.slice(0, 2000) };
-    if (e.tracking) evidence.evidence_info = { tracking_info: [{ carrier_name: e.tracking.carrier, tracking_number: e.tracking.trackingNumber }] };
-    if (e.refundIds) evidence.evidence_info = { refund_ids: e.refundIds.map((r) => ({ refund_id: r })) };
+    const info: Json = {};
+    if (e.tracking) info.tracking_info = [{ carrier_name: e.tracking.carrier, tracking_number: e.tracking.trackingNumber }];
+    if (e.refundIds?.length) info.refund_ids = e.refundIds; // refund_ids_list is an array of strings
+    if (Object.keys(info).length) evidence.evidence_info = info;
     const form = new FormData();
     form.append("input", new Blob([JSON.stringify({ evidences: [evidence] })], { type: "application/json" }));
     await this.call("POST", `/v1/customer/disputes/${id}/provide-evidence`, form);
@@ -155,7 +176,10 @@ export class SandboxPayPal implements PayPalPort {
   }
 
   async makeOffer(id: string, note: string, amount: Money, offerType: "REFUND" | "REFUND_WITH_RETURN"): Promise<void> {
-    await this.call("POST", `/v1/customer/disputes/${id}/make-offer`, { note: note.slice(0, 2000), offer_amount: amountJson(amount), offer_type: offerType });
+    const body: Json = { note: note.slice(0, 2000), offer_amount: amountJson(amount), offer_type: offerType };
+    // Required for not-as-described offers that ask for the item back.
+    if (offerType === "REFUND_WITH_RETURN") body.return_shipping_address = RETURN_ADDRESS;
+    await this.call("POST", `/v1/customer/disputes/${id}/make-offer`, body);
   }
 
   async simulateRequireEvidence(id: string, action: "SELLER_EVIDENCE" | "BUYER_EVIDENCE"): Promise<void> {

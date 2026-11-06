@@ -10,11 +10,12 @@ import type { OrderRecord, ShipPlan } from "../domain/orders.js";
 import type { CompileResult, Policy } from "../domain/policy.js";
 import { localDay } from "./time.js";
 import type { LLM } from "../llm/provider.js";
+import type { Screen } from "../llm/tasks.js";
 import { SimulatedPayPal } from "../paypal/simulated.js";
 import type { PayPalPort } from "../paypal/types.js";
 import type { Config } from "./config.js";
 
-export type IntentStatus = "allowed" | "needs_you" | "denied" | "rejected" | "awaiting_paypal" | "paid" | "payment_failed";
+export type IntentStatus = "allowed" | "needs_you" | "denied" | "rejected" | "awaiting_paypal" | "capturing" | "paid" | "payment_failed";
 
 export interface IntentRecord {
   intent: PurchaseIntent;
@@ -22,6 +23,9 @@ export interface IntentRecord {
   gate: GateResult;
   status: IntentStatus;
   by: string; // who picked the product (model name or rules)
+  source: "demo" | "channel3";
+  screen: Screen | null;
+  approvedAsks: string[]; // the "needs you" reasons the person approved
   pickNote: string | null;
   checkoutOrderId: string | null;
   approveUrl: string | null;
@@ -93,18 +97,36 @@ export class Session {
     this.audit.append(actor, action, detail, this.now());
   }
 
-  today(): string {
-    return localDay(this.now(), this.policy.tz);
+  /** Policy time zone: the active policy's, so drafting a new policy can't move today's day boundary. */
+  tz(): string {
+    return this.policy.active?.tz ?? this.policy.tz;
   }
 
-  /** Gross spend today in the policy currency. Other currencies are tracked apart, never converted. */
-  spentToday(): Money | null {
+  today(): string {
+    return localDay(this.now(), this.tz());
+  }
+
+  /**
+   * Money committed today in the policy currency: paid orders plus checkouts
+   * waiting for PayPal approval. Other currencies are never converted.
+   */
+  committedToday(excludeIntentId?: string): Money | null {
     const p = this.policy.active;
     if (!p) return null;
-    const minor = this.orders
-      .filter((o) => o.total.currency === p.currency && localDay(new Date(o.placedAt), this.policy.tz) === this.today())
-      .reduce((s, o) => s + o.total.minor, 0);
-    return { currency: p.currency, minor };
+    const isToday = (iso: string) => localDay(new Date(iso), this.tz()) === this.today();
+    const paid = this.orders.filter((o) => o.total.currency === p.currency && isToday(o.placedAt)).reduce((sum, o) => sum + o.total.minor, 0);
+    const pending = [...this.intents.values()]
+      .filter((r) => (r.status === "awaiting_paypal" || r.status === "capturing") && r.intent.id !== excludeIntentId && r.gate.total?.currency === p.currency && isToday(r.at))
+      .reduce((sum, r) => sum + (r.gate.total?.minor ?? 0), 0);
+    return { currency: p.currency, minor: paid + pending };
+  }
+
+  /** Serializes everything that can move money within one session. */
+  private chain: Promise<unknown> = Promise.resolve();
+  serial<T>(f: () => Promise<T>): Promise<T> {
+    const next = this.chain.then(f, f);
+    this.chain = next.catch(() => undefined);
+    return next;
   }
 
   envelopeRemaining(): Money | null {
@@ -122,7 +144,14 @@ export class Session {
 
 export class SessionStore {
   private sessions = new Map<string, Session>();
-  constructor(private readonly cfg: Config, private readonly ttlMs = 6 * 3_600_000, private readonly max = 500) {}
+  constructor(private readonly cfg: Config, private readonly ttlMs = 6 * 3_600_000, private readonly max = 3000) {}
+
+  /** Existing session or undefined; never creates one. */
+  find(id: string | undefined): Session | undefined {
+    const s = id ? this.sessions.get(id) : undefined;
+    if (s) s.lastSeen = Date.now();
+    return s;
+  }
 
   get(id: string | undefined): Session {
     this.sweep();

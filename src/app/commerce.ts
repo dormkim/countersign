@@ -1,7 +1,7 @@
 // Before-purchase flows: policy -> daily PayPal budget -> agent pick -> gate -> payment.
 import { randomUUID } from "node:crypto";
 import type { Offer } from "../catalog/types.js";
-import { evaluate, type PurchaseIntent } from "../domain/firewall.js";
+import { evaluate, type GateResult, type PurchaseIntent } from "../domain/firewall.js";
 import { formatMoney, parseMoney, type Money } from "../domain/money.js";
 import { planShipment, type OrderRecord } from "../domain/orders.js";
 import { compilePolicy } from "../domain/policy.js";
@@ -42,6 +42,14 @@ export async function openEnvelope(s: Session, amountText: string) {
   if (!parsed.ok) throw new UserError(parsed.error);
   if (parsed.money.minor > p.dailyMax.minor) throw new UserError(`Budget can't exceed your daily cap of ${formatMoney(p.dailyMax)}.`);
   const day = s.today();
+  const prev = s.envelope;
+  if (prev?.status === "active" && prev.day === day) throw new UserError("Today's budget is already active. Release it before approving a new one.");
+  if (prev?.status === "active" && prev.authorizationId) {
+    // An older day's authorization would otherwise be orphaned: release it first.
+    await s.paypal.voidAuthorization(prev.authorizationId);
+    prev.status = "voided";
+    s.log("system", "released an earlier day's budget before opening a new one", { authorizationId: prev.authorizationId, day: prev.day });
+  }
   const ref = await s.paypal.createOrder({
     intent: "AUTHORIZE", amount: parsed.money, description: `Countersign agent budget for ${day}`,
     invoiceId: `CS-BUDGET-${day}-${randomUUID().slice(0, 6)}`, returnUrl: `${s.cfg.publicBase}/api/paypal/return?kind=envelope`,
@@ -79,6 +87,16 @@ export async function onPayPalReturn(s: Session, orderId: string) {
   }
   const rec = [...s.intents.values()].find((r) => r.checkoutOrderId === orderId);
   if (!rec) throw new UserError(`No pending checkout for PayPal order ${orderId}.`);
+  if (rec.status !== "awaiting_paypal") return; // a reloaded return URL must not record a second order
+  rec.status = "capturing";
+  // Time has passed since the gate ran (other purchases, a new day): check again before money moves.
+  const again = await recheck(s, rec);
+  if (!again.ok) {
+    rec.status = "denied";
+    rec.error = `Not captured. Rechecked at PayPal return: ${again.why}`;
+    s.log("gate", "checkout stopped at recheck", { intent: rec.intent.id, why: again.why });
+    return;
+  }
   try {
     const cap = await s.paypal.captureOrder(orderId, `cap-${orderId}`);
     await recordOrder(s, rec, cap.amount, { orderId, captureId: cap.captureId, authorizationId: null });
@@ -113,26 +131,52 @@ export async function runAgent(s: Session, goal: string, source: "demo" | "chann
   return { candidates: offers, record, ms: Date.now() - t0 };
 }
 
-/** The single door every purchase goes through. */
-export async function proposeIntent(
-  s: Session, i: Omit<PurchaseIntent, "id">, source: "demo" | "channel3", by = "agent", pickNote: string | null = null, screen?: Screen,
-): Promise<IntentRecord> {
-  const intent: PurchaseIntent = { ...i, id: `int_${randomUUID().slice(0, 8)}` };
+/** Runs the gate against a fresh listing and current spend (other open purchases included). */
+async function gateFor(s: Session, intent: PurchaseIntent, source: "demo" | "channel3", screen: Screen | null | undefined) {
   let offer: Offer | null = null;
   let lookupError: string | null = null;
   try {
-    offer = await s.catalogFor(source).get(i.offerId); // fresh truth, not the agent's copy
+    offer = await s.catalogFor(source).get(intent.offerId); // fresh truth, not the agent's copy
   } catch (err) {
     lookupError = errText(err);
   }
   // Intents that did not come from a model pick get their own screen of the fresh listing text.
   const finalScreen = !offer ? null : screen !== undefined ? screen : await screenListing(s.llm, offer.title, offer.description);
   const gate = evaluate(intent, {
-    policy: s.policy.active, offer, spentToday: s.spentToday(), now: s.now(), envelopeRemaining: s.envelopeRemaining(), screen: finalScreen,
+    policy: s.policy.active, offer, spentToday: s.committedToday(intent.id), now: s.now(), envelopeRemaining: s.envelopeRemaining(), screen: finalScreen,
   });
-  if (lookupError) gate.checks.unshift({ id: "lookup", label: "Fresh listing lookup", outcome: "fail", detail: `Lookup failed: ${lookupError}` });
+  if (lookupError) {
+    gate.checks.unshift({ id: "lookup", label: "Fresh listing lookup", outcome: "fail", detail: `Lookup failed: ${lookupError}` });
+    gate.verdict = "DENY";
+    gate.headline = "Blocked: the listing could not be re-read.";
+  }
+  return { offer, gate, screen: finalScreen };
+}
+
+const asksOf = (g: GateResult) => g.checks.filter((c) => c.outcome === "ask" && c.id !== "funding").map((c) => c.id);
+
+/** Re-evaluates a purchase. OK only if it is now allowed, or asks nothing the person hasn't already approved. */
+async function recheck(s: Session, rec: IntentRecord): Promise<{ ok: boolean; why: string }> {
+  const { offer, gate } = await gateFor(s, rec.intent, rec.source, rec.screen);
+  const newAsks = asksOf(gate).filter((id) => !rec.approvedAsks.includes(id));
+  rec.offer = offer;
+  rec.gate = gate;
+  if (gate.verdict === "DENY") return { ok: false, why: gate.headline };
+  if (newAsks.length) return { ok: false, why: `new questions: ${newAsks.join(", ")}` };
+  return { ok: true, why: "" };
+}
+
+/** The single door every purchase goes through. */
+export async function proposeIntent(
+  s: Session, i: Omit<PurchaseIntent, "id">, source: "demo" | "channel3", by = "agent", pickNote: string | null = null, screen?: Screen,
+): Promise<IntentRecord> {
+  const intent: PurchaseIntent = { ...i, id: `int_${randomUUID().slice(0, 8)}` };
+  const { offer, gate, screen: used } = await gateFor(s, intent, source, screen);
   const status = gate.verdict === "ALLOW" ? "allowed" : gate.verdict === "ASK" ? "needs_you" : "denied";
-  const rec: IntentRecord = { intent, offer, gate, status, by, pickNote, checkoutOrderId: null, approveUrl: null, error: null, orderId: null, at: s.now().toISOString() };
+  const rec: IntentRecord = {
+    intent, offer, gate, status, by, pickNote, source, screen: used, approvedAsks: [],
+    checkoutOrderId: null, approveUrl: null, error: null, orderId: null, at: s.now().toISOString(),
+  };
   s.intents.set(intent.id, rec);
   s.log("gate", `verdict ${gate.verdict}`, { intent: intent.id, item: offer?.title ?? i.offerId, total: gate.total ? formatMoney(gate.total) : null, failed: gate.checks.filter((c) => c.outcome !== "pass").map((c) => c.id) });
   if (gate.verdict === "ALLOW") await pay(s, rec);
@@ -143,10 +187,19 @@ export async function decide(s: Session, intentId: string, decision: "approve" |
   const rec = s.intents.get(intentId);
   if (!rec) throw new UserError("Unknown purchase.");
   if (rec.status !== "needs_you") throw new UserError(`This purchase is ${rec.status.replace("_", " ")}; only "needs you" items take a decision.`);
-  s.log("human", decision === "approve" ? "approved purchase" : "rejected purchase", { intent: intentId, reasons: rec.gate.checks.filter((c) => c.outcome === "ask").map((c) => c.id) });
+  const shown = asksOf(rec.gate);
+  s.log("human", decision === "approve" ? "approved purchase" : "rejected purchase", { intent: intentId, reasons: shown });
   if (decision === "reject") {
     rec.status = "rejected";
     return rec;
+  }
+  rec.approvedAsks = shown;
+  const again = await recheck(s, rec); // spend, price or rules may have changed since the card was shown
+  if (!again.ok) {
+    if (rec.gate.verdict === "DENY") rec.status = "denied";
+    rec.approvedAsks = [];
+    s.log("gate", "approval refused at recheck", { intent: intentId, why: again.why });
+    throw new UserError(`Something changed since you looked (${again.why}). The card is updated; review it again.`);
   }
   rec.status = "allowed";
   await pay(s, rec);
@@ -204,7 +257,8 @@ async function recordOrder(s: Session, rec: IntentRecord, total: Money, pp: Orde
     await s.paypal.addTracking(pp.orderId, pp.captureId, o.shipment.carrier, o.shipment.trackingNumber);
     s.log("paypal", "tracking added to order", { orderId: pp.orderId, tracking: o.shipment.trackingNumber });
   } catch (err) {
-    s.log("paypal", "adding tracking failed (order kept)", { error: errText(err) });
+    o.shipment.trackingError = errText(err);
+    s.log("paypal", "adding tracking failed (order kept)", { error: o.shipment.trackingError });
   }
 }
 

@@ -66,7 +66,7 @@ describe("gate", () => {
     expect(r.checks.find((c) => c.id === "injection")).toBeTruthy();
   });
   it("never converts currency silently", () => {
-    expect(evaluate(intent(offer("Carry-On")), ctx(offer("Carry-On"))).verdict).toBe("ASK");
+    expect(evaluate(intent(offer("Carry-On")), ctx(offer("Carry-On"))).verdict).toBe("DENY"); // caps can't be checked in EUR
     expect(evaluate(intent(offer("Handmade")), ctx(offer("Handmade"))).verdict).toBe("DENY");
   });
   it("blocks categories and unsafe sellers", () => {
@@ -79,6 +79,22 @@ describe("gate", () => {
     expect(r.checks.filter((c) => c.outcome === "ask").map((c) => c.id)).toEqual(expect.arrayContaining(["shipping", "merchant", "returns"]));
   });
   it("needs an active policy", () => expect(evaluate(intent(), ctx(undefined, { policy: null })).verdict).toBe("DENY"));
+});
+
+describe("review fixes", () => {
+  it("trusted/blocked stores match exactly or by subdomain, never by substring", () => {
+    const o = { ...offer("Aurora"), merchant: { name: "amazon-deals.scam.example", domain: "amazon-deals.scam.example", signals: {} } };
+    const p = { ...POLICY, trustedMerchants: ["amazon"], unknownMerchant: "deny" as const };
+    expect(evaluate(intent(o), ctx(o, { policy: p })).checks.find((c) => c.id === "merchant")?.outcome).toBe("fail");
+    const sub = { ...o, merchant: { ...o.merchant, name: "shop.voltandco.example", domain: "shop.voltandco.example" } };
+    expect(evaluate(intent(sub), ctx(sub, { policy: { ...p, trustedMerchants: ["voltandco.example"] } })).checks.find((c) => c.id === "merchant")?.outcome).toBe("pass");
+  });
+  it("a blocked category in the title wins over the label", () => {
+    const o = { ...offer("Aurora"), title: "Electronics store Gift Card $50", category: "Electronics" };
+    expect(evaluate(intent(o), ctx(o)).checks.find((c) => c.id === "category")?.outcome).toBe("fail");
+    const rug = { ...offer("Aurora"), title: "Wool carpet runner", category: null };
+    expect(evaluate(intent(rug), ctx(rug)).checks.find((c) => c.id === "category")?.outcome).toBe("ask"); // not "pet"
+  });
 });
 
 describe("injection detector", () => {

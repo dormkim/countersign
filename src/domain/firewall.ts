@@ -2,7 +2,7 @@
 // Every check leaves a card with the numbers it used, so a verdict can be
 // read and audited without trusting any model.
 import type { Offer } from "../catalog/types.js";
-import { normalizeCategory, categoryFromText, categoryLabel } from "./categories.js";
+import { normalizeCategory, categoryFromText, categoriesIn, categoryLabel } from "./categories.js";
 import { findInjection } from "./injection.js";
 import { add, cmp, currencyInfo, formatMoney, sub, times, type Money } from "./money.js";
 import type { Policy } from "./policy.js";
@@ -77,8 +77,9 @@ export function evaluate(intent: PurchaseIntent, ctx: GateContext): GateResult {
     return finish(checks, null);
   }
   if (ci.code !== policy.currency) {
-    push("currency", "Currency", "ask",
-      `Priced in ${ci.code}; your limits are in ${policy.currency}. Countersign doesn't guess an exchange rate.`);
+    // Caps can't be checked without an exchange rate, and Countersign never guesses one.
+    push("currency", "Currency", "fail",
+      `Priced in ${ci.code}; your limits are in ${policy.currency}. Without converting, the caps can't be checked, so it isn't bought.`);
     return finish(checks, null);
   }
   push("currency", "Currency", "pass", `${ci.code}, same as your policy.`);
@@ -106,8 +107,10 @@ export function evaluate(intent: PurchaseIntent, ctx: GateContext): GateResult {
 
   // 4. Category.
   const cat = normalizeCategory(offer.category) ?? categoryFromText(`${offer.category ?? ""} ${offer.title}`);
-  if (!cat) push("category", "Category", "ask", `Couldn't place "${offer.category ?? offer.title}" in a category.`);
-  else if (policy.blockedCategories.includes(cat)) push("category", "Category", "fail", `${categoryLabel(cat)} is blocked by your policy.`);
+  // A blocked category named anywhere in the label or title wins over the primary label.
+  const blockedHit = [...new Set([...(cat ? [cat] : []), ...categoriesIn(`${offer.category ?? ""} ${offer.title}`)])].find((c) => policy.blockedCategories.includes(c));
+  if (blockedHit) push("category", "Category", "fail", `${categoryLabel(blockedHit)} is blocked by your policy ("${offer.title}").`);
+  else if (!cat) push("category", "Category", "ask", `Couldn't place "${offer.category ?? offer.title}" in a category.`);
   else if (policy.allowedCategories && !policy.allowedCategories.includes(cat)) {
     push("category", "Category", "fail", `${categoryLabel(cat)} isn't in your allowed list (${policy.allowedCategories.map(categoryLabel).join(", ")}).`);
   } else push("category", "Category", "pass", `${categoryLabel(cat)} is allowed.`);
@@ -166,10 +169,12 @@ function checkMerchant(offer: Offer, policy: Policy, push: (id: string, l: strin
   const name = offer.merchant.name.toLowerCase();
   const domain = offer.merchant.domain.toLowerCase();
   const label = "Merchant";
-  if (policy.blockedMerchants.some((b) => name.includes(b) || domain.includes(b))) {
+  // Exact name, exact domain or a subdomain of it: "shop.example" must not match "shop.example.scam".
+  const matches = (entry: string) => name === entry || domain === entry || domain.endsWith(`.${entry}`);
+  if (policy.blockedMerchants.some(matches)) {
     return push("merchant", label, "fail", `${offer.merchant.name} is on your blocked list.`);
   }
-  if (policy.trustedMerchants.some((t) => name.includes(t) || domain.includes(t))) {
+  if (policy.trustedMerchants.some(matches)) {
     return push("merchant", label, "pass", `${offer.merchant.name} is on your trusted list.`);
   }
   const t = trustScore(offer.merchant.signals);

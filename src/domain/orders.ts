@@ -20,8 +20,8 @@ export interface OrderRecord {
   total: Money;
   placedAt: string;
   paypal: { orderId: string; captureId: string; authorizationId: string | null };
-  shipment: { carrier: Carrier; trackingNumber: string; promisedBy: string; events: ShipEvent[] };
-  refunds: Array<{ id: string; amount: Money; at: string }>;
+  shipment: { carrier: Carrier; trackingNumber: string; promisedBy: string; events: ShipEvent[]; trackingError?: string };
+  refunds: Array<{ id: string; amount: Money; at: string; fromPayPal: boolean }>; // fromPayPal: id is a real PayPal refund id
   issue: { kind: "not_received" | "damaged"; reportedAt: string; note: string } | null;
   disputeId: string | null;
 }

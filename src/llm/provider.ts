@@ -62,11 +62,33 @@ class DeepSeekLLM implements LLM {
   }
 }
 
+/**
+ * Caps model calls per UTC day so a public demo can't run up the key's bill.
+ * Past the cap, calls fail with a clear message and every task falls back to
+ * its offline twin, which the UI labels.
+ */
+class BudgetedLLM implements LLM {
+  private day = "";
+  private used = 0;
+  constructor(private readonly inner: LLM, private readonly perDay: number) {}
+  get name() {
+    return this.inner.name;
+  }
+  async json(system: string, user: string, schema: Record<string, unknown>): Promise<unknown> {
+    const today = new Date().toISOString().slice(0, 10);
+    if (today !== this.day) { this.day = today; this.used = 0; }
+    if (this.used >= this.perDay) throw new LLMError(`today's AI call budget (${this.perDay}) is used up`);
+    this.used++;
+    return this.inner.json(system, user, schema);
+  }
+}
+
 /** null = offline mode (rule-based drafting, template wording). */
 export function llmFromEnv(env: NodeJS.ProcessEnv): LLM | null {
   const p = (env.LLM_PROVIDER ?? "").toLowerCase();
+  const perDay = Number(env.LLM_DAILY_CALLS || 1500);
   if (p === "none") return null;
-  if ((p === "anthropic" || !p) && env.ANTHROPIC_API_KEY) return new AnthropicLLM(env.ANTHROPIC_API_KEY, env.ANTHROPIC_MODEL || "claude-opus-5-5");
-  if ((p === "deepseek" || !p) && env.DEEPSEEK_API_KEY) return new DeepSeekLLM(env.DEEPSEEK_API_KEY, env.DEEPSEEK_MODEL || "deepseek-chat");
+  if ((p === "anthropic" || !p) && env.ANTHROPIC_API_KEY) return new BudgetedLLM(new AnthropicLLM(env.ANTHROPIC_API_KEY, env.ANTHROPIC_MODEL || "claude-opus-5-5"), perDay);
+  if ((p === "deepseek" || !p) && env.DEEPSEEK_API_KEY) return new BudgetedLLM(new DeepSeekLLM(env.DEEPSEEK_API_KEY, env.DEEPSEEK_MODEL || "deepseek-chat"), perDay);
   return null;
 }

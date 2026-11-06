@@ -154,8 +154,8 @@ export class SimulatedPayPal implements PayPalPort {
     return d;
   }
 
-  async listDisputes(): Promise<Dispute[]> {
-    return [...this.disputes.values()].map((d) => ({ ...d }));
+  async listDisputes(captureIds: string[]): Promise<Dispute[]> {
+    return [...this.disputes.values()].filter((d) => d.captureIds.some((c) => captureIds.includes(c))).map((d) => ({ ...d }));
   }
 
   async getDispute(disputeId: string): Promise<Dispute> {

@@ -105,7 +105,8 @@ export interface PayPalPort {
   voidAuthorization(authId: string): Promise<void>;
   refundCapture(captureId: string, amount: Money, note: string, requestId: string): Promise<RefundRef>;
   addTracking(orderId: string, captureId: string, carrier: string, trackingNumber: string): Promise<void>;
-  listDisputes(): Promise<Dispute[]>;
+  /** Disputes on the given captures (seller_transaction_id). */
+  listDisputes(captureIds: string[]): Promise<Dispute[]>;
   getDispute(id: string): Promise<Dispute>;
   provideEvidence(id: string, e: EvidenceInput): Promise<void>;
   acceptClaim(id: string, note: string, refund: Money | null): Promise<void>;

@@ -15,7 +15,7 @@ export function snapshot(s: Session) {
     clockOffsetDays: Math.round(s.clockOffsetMs / 86_400_000),
     today: s.today(),
     policy: s.policy,
-    spentToday: s.spentToday(),
+    spentToday: s.committedToday(),
     envelope: s.envelope,
     envelopeRemaining: s.envelopeRemaining(),
     nextShipPlan: s.nextShipPlan,
