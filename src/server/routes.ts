@@ -1,6 +1,6 @@
 // JSON API. Each handler returns data; errors become {error} with a status code.
-import { activatePolicy, decide, draftPolicyFor, onPayPalReturn, openEnvelope, runAgent, voidEnvelope, UserError } from "../app/commerce.js";
-import { advanceClock, buyerCaseFor, fileBuyerDispute, merchantCases, reportDamage, setShipPlan, simulateDecision, submitMerchantResponse } from "../app/disputes.js";
+import { activatePolicy, buyListing, decide, draftPolicyFor, onPayPalReturn, openEnvelope, runAgent, voidEnvelope, UserError } from "../app/commerce.js";
+import { advanceClock, buyerCaseFor, responseMessage, fileBuyerDispute, merchantCases, reportDamage, setShipPlan, simulateDecision, submitMerchantResponse } from "../app/disputes.js";
 import type { Session } from "../app/session.js";
 import { previewSplit, sendSplitInvoices } from "../app/split.js";
 import type { ShipPlan } from "../domain/orders.js";
@@ -30,6 +30,10 @@ export const routes: Array<[string, RegExp, Handler]> = [
     const r = await runAgent(s, str(b.goal, 300), source(b.source));
     return { ...snapshot(s), run: { candidates: r.candidates.map((o) => ({ id: o.id, title: o.title, price: o.price, merchant: o.merchant.name })), intentId: r.record?.intent.id ?? null, ms: r.ms } };
   }],
+  ["POST", /^\/api\/agent\/buy$/, async (s, b) => {
+    const r = await buyListing(s, str(b.offerId, 100));
+    return { ...snapshot(s), intentId: r.intent.id };
+  }],
   ["POST", /^\/api\/intents\/([\w-]+)\/decide$/, async (s, b, [id]) => { await decide(s, id!, b.decision === "approve" ? "approve" : "reject"); return snapshot(s); }],
   ["POST", /^\/api\/ship-plan$/, async (s, b) => {
     const p = str(b.plan) as ShipPlan;
@@ -50,7 +54,7 @@ export const routes: Array<[string, RegExp, Handler]> = [
   ["GET", /^\/api\/merchant\/disputes$/, async (s) => merchantCases(s)],
   ["POST", /^\/api\/merchant\/disputes\/([\w-]+)\/submit$/, async (s, b, [id]) => {
     const d = await submitMerchantResponse(s, id!, str(b.action) as never, str(b.note, 2000));
-    return { dispute: d, state: snapshot(s) };
+    return { dispute: d, state: snapshot(s), message: responseMessage(s, d) };
   }],
   ["POST", /^\/api\/merchant\/disputes\/([\w-]+)\/simulate$/, async (s, b, [id]) => {
     const d = await simulateDecision(s, id!, b.outcome === "SELLER_FAVOR" ? "SELLER_FAVOR" : "BUYER_FAVOR");

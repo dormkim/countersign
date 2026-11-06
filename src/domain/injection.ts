@@ -33,11 +33,22 @@ export function findInjection(...texts: Array<string | null | undefined>): Injec
     for (const [re, reason] of PATTERNS) {
       const m = re.exec(text);
       if (!m) continue;
-      const start = Math.max(0, m.index - 30);
-      out.push({ reason, snippet: text.slice(start, m.index + m[0].length + 30).trim() });
+      out.push({ reason, snippet: sentenceAround(text, m.index, m.index + m[0].length) });
     }
   }
   return out;
+}
+
+/** The whole sentence around a match (capped), so the quote shown to a person never starts mid-word. */
+function sentenceAround(text: string, from: number, to: number, reach = 100): string {
+  let start = from;
+  while (start > 0 && from - start < reach && !/[.!?]/.test(text[start - 1]!)) start--;
+  let end = to;
+  while (end < text.length && end - to < reach && !/[.!?]/.test(text[end - 1]!)) end++;
+  let s = text.slice(start, end);
+  if (start > 0 && !/[.!?]/.test(text[start - 1]!)) s = `…${s.replace(/^\S*\s/, "")}`;
+  if (end < text.length && !/[.!?]/.test(text[end - 1]!)) s = `${s.replace(/\s\S*$/, "")}…`;
+  return s.trim();
 }
 
 /** Wraps untrusted text for an LLM prompt so it reads as quoted data. */

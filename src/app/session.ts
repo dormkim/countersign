@@ -35,6 +35,16 @@ export interface IntentRecord {
   at: string;
 }
 
+/** The agent's latest search, kept so the person can point at one result ("buy this one"). */
+export interface LastSearch {
+  goal: string;
+  source: "demo" | "channel3";
+  offers: Offer[]; // as the agent saw them; the gate re-reads each listing anyway
+  pick: string | null;
+  flags: Record<string, string>; // listings the model flagged as steering agents
+  by: string;
+}
+
 export interface Envelope {
   orderId: string;
   status: "awaiting_paypal" | "active" | "voided" | "failed";
@@ -68,6 +78,7 @@ export class Session {
   policy: PolicyState = { text: "", tz: "America/Los_Angeles", draft: null, draftedBy: "", draftNote: null, active: null, activatedAt: null };
   envelope: Envelope | null = null;
   intents = new Map<string, IntentRecord>();
+  lastSearch: LastSearch | null = null;
   orders: OrderRecord[] = [];
   nextShipPlan: ShipPlan = "on_time";
   /** Drafted notes keyed by case identity, so a model is not re-called on every refresh. */

@@ -156,3 +156,9 @@ main { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
   .checks li .d { grid-column: 1 / -1; }
   .audit li { grid-template-columns: 34px 1fr; }
 }
+.results { border: 1px dashed var(--line); border-radius: var(--radius); padding: 8px 14px; margin: 14px 0; }
+.results ul { list-style: none; margin: 0; padding: 0; }
+.results li { padding: 6px 0; border-top: 1px solid var(--line); }
+.results li:first-child { border-top: 0; }
+.results li .small { float: right; }
+.results li .muted { font-size: 0.85rem; }

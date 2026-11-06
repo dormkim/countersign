@@ -107,6 +107,7 @@ export function renderMerchant() {
 
 export async function submitMerchant(id, action) {
   const note = $(`mnote-${id}`)?.value ?? "";
-  await act(() => api(`/api/merchant/disputes/${id}/submit`, { action, note }), "Response sent to PayPal.");
+  const r = await act(() => api(`/api/merchant/disputes/${id}/submit`, { action, note }));
+  if (r?.message) toast(r.message);
   await loadMerchant();
 }

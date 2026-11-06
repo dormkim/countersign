@@ -31,13 +31,34 @@ export function decisionCard(r) {
     </div></article>`;
 }
 
+// The agent's latest results. "Buy this one" sends that exact listing to the gate,
+// so a listing the agent passed over can still be tried, and the gate decides.
+function searchResults(ls) {
+  if (!ls || !ls.offers.length) return "";
+  const row = (o) => {
+    const flag = ls.flags[o.id];
+    const tag = o.id === ls.pick ? `<span class="chip live">agent's pick</span>` : flag ? `<span class="chip off" title="${esc(flag)}">agent flagged it</span>` : "";
+    return `<li><b>${esc(o.title)}</b> <span class="muted">${esc(o.merchant)} · ${fmt(o.price)}</span> ${tag}
+      <button class="small" data-buy="${esc(o.id)}">Buy this one</button>${flag ? `<div class="muted">${esc(ls.by)}: ${esc(flag)}</div>` : ""}</li>`;
+  };
+  return `<div class="results"><p class="muted">Search results for "${esc(ls.goal)}"${ls.pick ? "" : ": the agent picked none of them"}. Any of them can be sent to the gate.</p><ul>${ls.offers.map(row).join("")}</ul></div>`;
+}
+
+export async function buyThis(offerId) {
+  const r = await act(() => api("/api/agent/buy", { offerId }));
+  const rec = r?.intents?.find((x) => x.intent.id === r.intentId);
+  if (rec?.approveUrl) openApproval(rec.approveUrl);
+  return r;
+}
+
 export function renderShop() {
   const src = $("source");
   if (!src.options.length) {
     src.innerHTML = `<option value="demo">Demo store (fictional, includes traps)</option>${st.S.modes.channel3 ? `<option value="channel3">Channel3 (real products)</option>` : ""}`;
   }
   const list = st.S.intents;
-  $("shopOut").innerHTML = list.length ? list.map(decisionCard).join("") : `<p class="muted">No purchases yet.</p>`;
+  $("shopOut").innerHTML = searchResults(st.S.lastSearch) + (list.length ? list.map(decisionCard).join("") : `<p class="muted">No purchases yet.</p>`);
+  $("shopOut").querySelectorAll("[data-buy]").forEach((b) => b.addEventListener("click", () => buyThis(b.dataset.buy)));
   $("shopOut").querySelectorAll("[data-decide]").forEach((b) => b.addEventListener("click", async () => {
     const r = await act(() => api(`/api/intents/${b.dataset.id}/decide`, { decision: b.dataset.decide }));
     const rec = r?.intents?.find((x) => x.intent.id === b.dataset.id);

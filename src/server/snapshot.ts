@@ -20,6 +20,10 @@ export function snapshot(s: Session) {
     envelopeRemaining: s.envelopeRemaining(),
     nextShipPlan: s.nextShipPlan,
     intents: [...s.intents.values()].reverse(),
+    lastSearch: s.lastSearch && {
+      goal: s.lastSearch.goal, pick: s.lastSearch.pick, flags: s.lastSearch.flags, by: s.lastSearch.by,
+      offers: s.lastSearch.offers.map((o) => ({ id: o.id, title: o.title, price: o.price, merchant: o.merchant.name })),
+    },
     orders: s.orders.map((o) => {
       const c = buyerCase(o, now);
       return { ...o, shipment: { ...o.shipment, events: visibleEvents(o, now) }, buyer: { action: c.action, rationale: c.rationale } };

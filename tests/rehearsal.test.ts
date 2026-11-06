@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { activatePolicy, draftPolicyFor, onPayPalReturn, openEnvelope, proposeIntent } from "../src/app/commerce.js";
 import type { Config } from "../src/app/config.js";
-import { advanceClock, fileBuyerDispute, merchantCases, setShipPlan, simulateDecision, submitMerchantResponse } from "../src/app/disputes.js";
+import { advanceClock, fileBuyerDispute, responseMessage, merchantCases, setShipPlan, simulateDecision, submitMerchantResponse } from "../src/app/disputes.js";
 import { Session } from "../src/app/session.js";
 import { DEMO_OFFERS, DemoCatalog } from "../src/catalog/demoCatalog.js";
 import { SimulatedPayPal } from "../src/paypal/simulated.js";
@@ -52,6 +52,7 @@ describe("sandbox rehearsal disputes", () => {
     expect(o.refunds).toHaveLength(1);
     expect(o.refunds[0]!.fromPayPal).toBe(true);
     expect(o.refunds[0]!.amount.minor).toBe(o.total.minor);
+    expect(responseMessage(s, d)).toBe("Rehearsal: recorded in this app, not sent to PayPal. Refund issued in the PayPal sandbox.");
     await expect(fileBuyerDispute(s, o.id, "again", true)).rejects.toThrow(); // already refunded and disputed: nothing to file
   });
 

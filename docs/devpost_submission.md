@@ -84,7 +84,7 @@ The server is plain Node.js with no framework, and the UI is static HTML and Jav
 
 ## Accomplishments that we're proud of
 
-- The end-to-end evaluation passes 28 of 28 scenarios with the offline rules and 28 of 28 with Claude (median 4.3 s per scenario with Claude, set by model latency). The scenarios cover boundary amounts, euro and yen policies, an agent that understates a price, injection phrasings, budgets that run out, filing too early and answering after the deadline.
+- The end-to-end evaluation passes 29 of 29 scenarios with the offline rules, and the first 28 passed 28 of 28 with Claude (median 4.3 s per scenario with Claude, set by model latency; scenario 29 was added later and has only an offline run). The scenarios cover boundary amounts, euro and yen policies, an agent that understates a price, injection phrasings, budgets that run out, filing too early and answering after the deadline.
 - With Claude screening listing text, the injection probes came out at 10 of 10 hostile listings caught with no false alarms on set A, and 8 of 8 caught on set B (that run had one false alarm, from the pattern check, which we fixed afterwards).
 - All 8 Claude-written dispute notes in the measured run passed the number guard.
 - The whole product runs with no keys at all, so judges can try every step offline, and the same flows switch to the PayPal sandbox and Claude with environment variables.
@@ -120,7 +120,7 @@ cd [REPO FOLDER]
 npm install
 npm run dev          # open http://localhost:3000 and press "Play the 30-second story"
 npm test             # unit tests
-npm run eval         # 28 end-to-end scenarios
+npm run eval         # 29 end-to-end scenarios
 ```
 
 Requirements: Node 20 or newer. In offline mode the PayPal approval page is a labeled simulation and the header reads "AI: Offline rules".

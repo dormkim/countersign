@@ -167,6 +167,13 @@ export async function submitMerchantResponse(s: Session, disputeId: string, acti
   return s.paypal.getDispute(disputeId);
 }
 
+/** What the person is told after approving a merchant response: a rehearsal never reaches PayPal. */
+export function responseMessage(s: Session, d: Dispute): string {
+  if (!d.rehearsal) return s.paypal.mode === "sandbox" ? "Response sent to PayPal (sandbox Disputes API)." : "Response sent to the simulated PayPal.";
+  const refunded = s.orders.some((o) => d.captureIds.includes(o.paypal.captureId) && o.refunds.some((r) => r.fromPayPal));
+  return `Rehearsal: recorded in this app, not sent to PayPal.${refunded ? " Refund issued in the PayPal sandbox." : ""}`;
+}
+
 async function rehearsalResponse(s: Session, d: Dispute, action: MerchantAction, note: string): Promise<Dispute> {
   const rh = s.rehearsal!;
   try {

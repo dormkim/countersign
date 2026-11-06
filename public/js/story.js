@@ -1,6 +1,6 @@
 import { $, act, api, caseCache, esc, st, toast, tz } from "./core.js";
 import { POLICY_PRESETS } from "./rules.js";
-import { GOALS, runAgent } from "./shop.js";
+import { GOALS, buyThis, runAgent } from "./shop.js";
 import { fileClaim, loadCase, submitMerchant } from "./claims.js";
 
 // The 30-second story: drives the real API end to end with narration.
@@ -59,8 +59,10 @@ export async function play() {
     if (!st.S.orders.length) throw new Error("the agent's first pick wasn't paid automatically, so the story can't continue; see the card in section 3");
     await pause(1600);
 
-    storyStep("trap", "A cheaper listing hides instructions aimed at AI agents. The gate flags it and waits for you. A gift card is blocked outright.");
-    await runAgent(GOALS[1]);
+    storyStep("trap", "A cheaper listing hides instructions aimed at AI agents. Even when you tell the agent to buy it, the gate quotes the text and waits for you. A gift card is blocked outright.");
+    const trap = await runAgent(GOALS[1]);
+    // A model picker usually skips the injected listing; send it to the gate by hand so the check is visible.
+    if (trap?.run && !trap.run.intentId && trap.run.candidates.length) await buyThis(trap.run.candidates[0].id);
     await pause(1400);
     await runAgent(GOALS[2]);
     await pause(1600);

@@ -22,7 +22,7 @@
 - `src/paypal/` 같은 인터페이스(`types.ts`)의 sandbox REST(`rest.ts`)와 시뮬레이터(`simulated.ts`).
 - `src/catalog/` 데모 카탈로그(함정 포함)와 Channel3. `src/llm/` 공급자 교체와 세 가지 작업.
 - `src/app/` 세션별 흐름, `src/server/` HTTP·스냅샷, `public/` 빌드 없는 UI.
-- 검증: `npm test`(단위), `npm run eval`(종단 시나리오 24개, 처음 본 사례로 작성), `eval/drafts.ts`(LLM 문구 가드 통과율).
+- 검증: `npm test`(단위), `npm run eval`(종단 시나리오 29개, 처음 본 사례로 작성), `eval/drafts.ts`(LLM 문구 가드 통과율).
 
 ## 함정
 - PayPal 미지원 통화(KRW)·소수 금지 통화(JPY·HUF·TWD)는 `money.ts`가 정본. 환산하지 않는다.
@@ -35,3 +35,5 @@
 - Invoicing은 REST 앱에서 **Invoicing 기능을 켜야** 한다. 꺼져 있으면 토큰에 invoicing scope가 없어 모든 호출이 `403 NOT_AUTHORIZED`(2026-11-06 실측, 키 문제처럼 보이니 주의). `rest.ts`가 이 403에 설정 안내를 붙인다.
 - `REHEARSAL-` id는 세션에 없어도 PayPal로 보내지 않는다(`disputes.ts`의 `fetchDispute`).
 - 앱 기능(Invoicing 등)을 켠 뒤에도 PayPal은 기존 토큰(약 9시간)을 그대로 돌려줘 scope가 안 바뀐다. `POST /v1/oauth2/token/terminate`(token=현재 토큰)로 끊고 새로 받으면 바로 반영된다(2026-11-06 실측: Invoicing 403 → SENT).
+- Claude가 고르면 에이전트는 주입 문구 상품(demo-006)을 스스로 피한다 → 관문의 ASK 카드가 안 보인다. 검색 결과마다 «Buy this one»(`buyListing`, `/api/agent/buy`)으로 그 상품을 관문에 직접 보낸다. 최근 검색 결과 안의 상품만 받고, 가격 주장은 검색 때 본 값, 재조회·직렬 처리는 기존 문(`proposeIntent`) 그대로(2026-11-06).
+- 리허설 분쟁 응답 알림은 `responseMessage`(disputes.ts)가 정한다. «PayPal로 보냄»이라고 쓰지 말 것.

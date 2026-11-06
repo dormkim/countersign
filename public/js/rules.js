@@ -9,7 +9,7 @@ export function renderModes() {
     `<span class="chip ${m.channel3 ? "live" : "off"}">Catalog: <b>${m.channel3 ? "Channel3 + demo" : "Demo store"}</b></span>`,
   ].join("");
   const now = new Date(st.S.now);
-  $("clock").innerHTML = `${now.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}${st.S.clockOffsetDays ? ` <b>(+${st.S.clockOffsetDays} days, simulated)</b>` : ""}`;
+  $("clock").innerHTML = `${now.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" })}${st.S.clockOffsetDays ? ` <b>(+${st.S.clockOffsetDays} days, simulated)</b>` : ""}`;
 }
 
 export const POLICY_PRESETS = {

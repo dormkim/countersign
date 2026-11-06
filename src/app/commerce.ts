@@ -120,6 +120,7 @@ export async function runAgent(s: Session, goal: string, source: "demo" | "chann
   }
   const pick = await pickProduct(s.llm, goal, offers);
   s.log("agent", "searched and picked", { catalog: catalog.name, query: goal, results: offers.length, pick: pick.value.offerId, by: pick.by, note: pick.note });
+  s.lastSearch = { goal, source, offers, pick: pick.value.offerId, flags: pick.value.flags, by: pick.by };
   if (!pick.value.offerId) return { candidates: offers, record: null, ms: Date.now() - t0 };
   const chosen = offers.find((o) => o.id === pick.value.offerId)!;
   // The pick call already screened every listing; reuse it instead of a second model call.
@@ -129,6 +130,25 @@ export async function runAgent(s: Session, goal: string, source: "demo" | "chann
     offerId: chosen.id, quantity: pick.value.quantity, claimedUnitPrice: chosen.price, agentReason: pick.value.reason, goal,
   }, source, pick.by, pick.note, screen);
   return { candidates: offers, record, ms: Date.now() - t0 };
+}
+
+/**
+ * The person points at one search result and tells the agent to buy it, even one
+ * the agent passed over. It goes through the same door as an agent pick, so the
+ * gate (not the picker) decides: fresh lookup, every rule, listing-text check.
+ */
+export async function buyListing(s: Session, offerId: string): Promise<IntentRecord> {
+  const ls = s.lastSearch;
+  const seen = ls?.offers.find((o) => o.id === offerId);
+  if (!ls || !seen) throw new UserError("Pick a listing from the agent's latest search results.");
+  const flag = ls.flags[offerId];
+  // Reuse the model's screen from the search call; with no model, gateFor screens the fresh text itself.
+  const screen: Screen | undefined = ls.by === "rules" ? undefined : { flagged: Boolean(flag), reason: flag ?? "", by: ls.by };
+  s.log("human", "told the agent to buy a specific listing", { offerId, item: seen.title, agentPick: ls.pick, agentFlag: flag ?? null });
+  return proposeIntent(s, {
+    offerId, quantity: 1, claimedUnitPrice: seen.price, goal: ls.goal,
+    agentReason: `You told the agent to buy this listing${ls.pick === offerId ? "" : " (it was not the agent's pick)"}.`,
+  }, ls.source, "you", null, screen);
 }
 
 /** Runs the gate against a fresh listing and current spend (other open purchases included). */

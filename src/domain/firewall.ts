@@ -141,7 +141,7 @@ export function evaluate(intent: PurchaseIntent, ctx: GateContext): GateResult {
   const screen = ctx.screen ?? null;
   if (inj.length) {
     push("injection", "Listing text", "ask",
-      `Listing text ${inj[0]!.reason}: "${inj[0]!.snippet}". Ignored as instructions; flagged for you.`);
+      `Listing text ${inj[0]!.reason}: "${inj[0]!.snippet}" Ignored as instructions; flagged for you.`);
   } else if (screen?.flagged) {
     push("injection", "Listing text", "ask", `${screen.by} flagged the listing text: ${screen.reason}. Ignored as instructions; flagged for you.`);
   } else if (screen && screen.by === "unavailable") {
