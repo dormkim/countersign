@@ -72,7 +72,11 @@ export async function runAgent(goal) {
   $("runAgent").disabled = true;
   try {
     const r = await act(() => api("/api/agent/run", { goal, source: $("source").value }));
-    if (r?.run && !r.run.intentId) toast("The agent found nothing that fits.", true);
+    if (r?.run && !r.run.intentId) {
+      // Passing on every result is a decision, not an error, unless nothing was found at all.
+      if (r.run.candidates.length) toast(`The agent passed on all ${r.run.candidates.length} result(s). Its reasons are under the search results.`);
+      else toast("The agent found nothing that fits.", true);
+    }
     return r;
   } finally {
     $("runAgent").disabled = false;
