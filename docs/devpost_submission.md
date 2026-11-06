@@ -57,6 +57,8 @@ PayPal is the payment layer for every step. Countersign calls the PayPal REST AP
 
 One TypeScript interface has two implementations: the PayPal sandbox REST adapter, and an in-memory simulator with the same state machine and the same refusals (over-capture, unsupported currencies such as KRW, decimals in JPY). Setting `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` switches from the simulator to the sandbox with no code change. PayPal errors are shown with their issue name and `debug_id`.
 
+What has run live in the PayPal sandbox (2026-11-06, `npm run smoke:sandbox` and `npm run smoke:sandbox2`, plus the app itself in sandbox mode): OAuth; an AUTHORIZE order approved by the sandbox buyer, authorized, two $1 partial captures with `final_capture: false`, then void; CAPTURE order creation; order tracking on a capture; a partial refund, where sending the same `PayPal-Request-Id` again returned the same refund; the dispute list (empty, so the app moved on to a rehearsal dispute); and both rehearsal-dispute paths ending in real sandbox refunds. Not yet run live: the dispute write endpoints and simulation endpoints, which need a dispute opened by a buyer in the Resolution Center, and Invoicing, which needs the Invoicing feature switched on for the REST app.
+
 AI is used for four jobs, all through Anthropic's Claude (`claude-opus-5-5`, via the Anthropic TypeScript SDK with JSON-schema structured output). DeepSeek can be selected instead with one environment variable.
 
 | Job | What Claude gets | What code does with the answer |
@@ -127,6 +129,8 @@ To use the PayPal sandbox and Claude, copy `.env.example` to `.env`, fill in `PA
 
 ```bash
 npm run smoke:sandbox                # checks the keys, prints a PayPal approval link
+npm run smoke:sandbox -- <orderId>   # after approving: authorize, two partial captures, void
+npm run smoke:sandbox2 -- <orderId> <captureId> <captureId2>   # refund, tracking, invoice, dispute list
 set -a; source .env; set +a; npm run dev
 ```
 

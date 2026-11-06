@@ -201,8 +201,24 @@ export class SandboxPayPal implements PayPalPort {
     await this.call("POST", `/v1/customer/disputes/${id}/adjudicate`, { adjudication_outcome: outcome });
   }
 
+  /**
+   * Invoicing needs its own permission on the REST app. Without it every call is
+   * 403 NOT_AUTHORIZED (seen live 2026-11-06: the token had no invoicing scope),
+   * which reads like a bad key, so the error names the dashboard switch.
+   */
+  private async invoicing(method: string, path: string, body: Json): Promise<Json> {
+    try {
+      return await this.call(method, path, body);
+    } catch (err) {
+      if (err instanceof PayPalError && err.status === 403) {
+        throw new PayPalError(`${err.message} The sandbox REST app has no Invoicing permission: turn on Invoicing in the app's features at developer.paypal.com (Apps & Credentials), then retry.`, err.status, err.name_, err.debugId, err.details);
+      }
+      throw err;
+    }
+  }
+
   async createInvoice(i: InvoiceInput): Promise<InvoiceRef> {
-    const j = await this.call("POST", "/v2/invoicing/invoices", {
+    const j = await this.invoicing("POST", "/v2/invoicing/invoices", {
       detail: { currency_code: i.currency, invoice_number: i.invoiceNumber, note: i.note.slice(0, 4000) },
       // invoicer is optional in invoicing_v2; an empty email_address would fail validation.
       ...(this.merchantEmail ? { invoicer: { email_address: this.merchantEmail } } : {}),
@@ -215,7 +231,7 @@ export class SandboxPayPal implements PayPalPort {
   }
 
   async sendInvoice(id: string): Promise<InvoiceRef> {
-    const j = await this.call("POST", `/v2/invoicing/invoices/${id}/send`, { send_to_invoicer: false, send_to_recipient: true });
+    const j = await this.invoicing("POST", `/v2/invoicing/invoices/${id}/send`, { send_to_invoicer: false, send_to_recipient: true });
     const pay = (j.links as Json[] | undefined)?.find((l) => l.rel === "payer-view")?.href ?? j.href ?? null;
     return { id, status: "SENT", payUrl: pay };
   }

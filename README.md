@@ -75,18 +75,18 @@ The model writes the note. `src/domain/draftGuard.ts` then checks that every num
 
 Everything goes through `src/paypal/types.ts`, one interface with two implementations: `rest.ts` (PayPal sandbox REST, written against the official OpenAPI specs in `paypal/paypal-rest-api-specifications`) and `simulated.ts` (an in-memory PayPal with the same state machine and the same refusals, used when no keys are set). Setting `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` switches to the sandbox; no code changes.
 
-| Purpose | Endpoint |
-|---|---|
-| OAuth | `POST /v1/oauth2/token` |
-| Daily budget | `POST /v2/checkout/orders` (`intent: AUTHORIZE`), buyer approval, `POST /v2/checkout/orders/{id}/authorize` |
-| Agent purchase from the budget | `POST /v2/payments/authorizations/{id}/capture` with `final_capture: false` and a `PayPal-Request-Id` |
-| Release unused budget | `POST /v2/payments/authorizations/{id}/void` |
-| Purchase without a budget | `POST /v2/checkout/orders` (`intent: CAPTURE`), approval, `POST /v2/checkout/orders/{id}/capture` |
-| Tracking for dispute evidence | `POST /v2/checkout/orders/{id}/track` |
-| Disputes | `GET /v1/customer/disputes`, `GET /v1/customer/disputes/{id}`, `provide-evidence`, `accept-claim`, `make-offer` |
-| Sandbox dispute simulation | `POST /v1/customer/disputes/{id}/require-evidence`, `POST /v1/customer/disputes/{id}/adjudicate` |
-| Refunds | `POST /v2/payments/captures/{id}/refund` |
-| Split invoices | `POST /v2/invoicing/invoices`, `POST /v2/invoicing/invoices/{id}/send` |
+| Purpose | Endpoint | Live sandbox check (2026-11-06) |
+|---|---|---|
+| OAuth | `POST /v1/oauth2/token` | works |
+| Daily budget | `POST /v2/checkout/orders` (`intent: AUTHORIZE`), buyer approval, `POST /v2/checkout/orders/{id}/authorize` | works (approved with the sandbox Personal account) |
+| Agent purchase from the budget | `POST /v2/payments/authorizations/{id}/capture` with `final_capture: false` and a `PayPal-Request-Id` | works (two $1 partial captures on one authorization) |
+| Release unused budget | `POST /v2/payments/authorizations/{id}/void` | works |
+| Purchase without a budget | `POST /v2/checkout/orders` (`intent: CAPTURE`), approval, `POST /v2/checkout/orders/{id}/capture` | order creation works; approve-and-capture not yet run live |
+| Tracking for dispute evidence | `POST /v2/checkout/orders/{id}/track` | works (USPS, on a capture of an AUTHORIZE order) |
+| Disputes | `GET /v1/customer/disputes`, `GET /v1/customer/disputes/{id}`, `provide-evidence`, `accept-claim`, `make-offer` | list works (empty list, the app falls back to a rehearsal dispute); the others need a buyer-opened dispute and have not run live |
+| Sandbox dispute simulation | `POST /v1/customer/disputes/{id}/require-evidence`, `POST /v1/customer/disputes/{id}/adjudicate` | not run live (needs a real dispute) |
+| Refunds | `POST /v2/payments/captures/{id}/refund` | works: a partial refund, the same `PayPal-Request-Id` replayed returns the same refund, and both rehearsal-dispute paths (accept claim; evidence then buyer-favor decision) ended in real sandbox refunds |
+| Split invoices | `POST /v2/invoicing/invoices`, `POST /v2/invoicing/invoices/{id}/send` | `403 NOT_AUTHORIZED` until Invoicing is switched on for the REST app (setup step 2); the app shows the error and how to fix it |
 
 Why a daily authorization instead of a saved payment method: PayPal wallet vaulting was refused for some hackathon sandbox apps (reported in the hackathon Discussions), while authorize-then-partial-capture works in sandbox. It also gives the person a hard ceiling that PayPal itself enforces. The hosted PayPal MCP server was returning `PAYPAL_API_SETUP_ERROR` for participants (`paypal/agent-toolkit#119`), so this project calls the REST API directly.
 
@@ -130,7 +130,8 @@ set -a; source .env; set +a; npm run dev
 
 1. At developer.paypal.com, create a sandbox REST app. Use **United States** sandbox Business and Personal accounts (accounts in some other countries can't complete payments in sandbox).
 2. Put the app's client ID and secret in `PAYPAL_CLIENT_ID` / `PAYPAL_CLIENT_SECRET`, the Business account's email in `PAYPAL_MERCHANT_EMAIL` (Invoicing returns `USER_NOT_FOUND` if it doesn't match), and your public URL in `PUBLIC_BASE_URL` (PayPal sends the buyer back to it).
-3. Check the keys in one command: `npm run smoke:sandbox` gets a token, creates a $5 AUTHORIZE order and prints the approval link. After approving with the sandbox Personal account, `npm run smoke:sandbox -- <orderId>` authorizes it, makes two $1 partial captures with `final_capture: false` and voids the rest. It never prints the keys or the token.
+   In the app's settings, turn on the **Invoicing** feature for the split invoices; without it every Invoicing call returns `403 NOT_AUTHORIZED` (the access token has no invoicing scope).
+3. Check the keys in one command: `npm run smoke:sandbox` gets a token, creates a $5 AUTHORIZE order and prints the approval link. After approving with the sandbox Personal account, `npm run smoke:sandbox -- <orderId>` authorizes it, makes two $1 partial captures with `final_capture: false` and voids the rest. Then `npm run smoke:sandbox2 -- <orderId> <captureId> <captureId2>` runs the calls that need no approval on those captures: a $0.50 refund (and the same `PayPal-Request-Id` again), order tracking, an invoice to a fictional `@personal.example.com` recipient, and the dispute list. Each refund uses up capture money, so rerun it on fresh captures. Neither script prints the keys or the token.
 4. Approve budgets and checkouts with the sandbox Personal account.
 5. Buyers can't open disputes through the public API. In sandbox, log in to sandbox.paypal.com as the Personal account, open the Resolution Center for the transaction and paste the note the copilot drafted; then press "Refresh disputes" on the merchant desk. If no real dispute exists yet, the app offers a **rehearsal dispute**: it stays in the app's memory (id `REHEARSAL-…`, labeled on screen), is never sent to the Disputes API, and any refund it leads to is a real sandbox refund through `POST /v2/payments/captures/{id}/refund`. The 30-second story uses it in sandbox mode. In simulated mode this whole step is simulated.
 

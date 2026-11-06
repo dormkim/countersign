@@ -6,6 +6,7 @@ import { buyerCase, merchantCase, remaining, type CaseFile, type MerchantAction 
 import { formatMoney } from "../domain/money.js";
 import { planShipment, type ShipPlan } from "../domain/orders.js";
 import { draftNote } from "../llm/tasks.js";
+import { REHEARSAL_PREFIX } from "../paypal/rehearsal.js";
 import type { Dispute } from "../paypal/types.js";
 import { UserError, errText } from "./commerce.js";
 import type { Session } from "./session.js";
@@ -112,7 +113,12 @@ export async function merchantCases(s: Session): Promise<{ cases: MerchantCaseVi
 const ownDispute = (s: Session, d: Dispute) => s.orders.some((o) => d.captureIds.includes(o.paypal.captureId));
 
 const isRehearsal = (s: Session, id: string) => Boolean(s.rehearsal?.has(id));
-const fetchDispute = (s: Session, id: string) => (isRehearsal(s, id) ? Promise.resolve(s.rehearsal!.get(id)) : s.paypal.getDispute(id));
+async function fetchDispute(s: Session, id: string): Promise<Dispute> {
+  if (isRehearsal(s, id)) return s.rehearsal!.get(id);
+  // A REHEARSAL- id never goes to PayPal, even one this session doesn't hold (expired, or another visitor's).
+  if (id.startsWith(REHEARSAL_PREFIX)) throw new UserError("Unknown rehearsal dispute. Rehearsals live only in the browser session that opened them.");
+  return s.paypal.getDispute(id);
+}
 
 /** Rehearsal disputes never reach PayPal, but their refunds do: Payments v2 refund on the capture. */
 async function realRefund(s: Session, d: Dispute, note: string) {
