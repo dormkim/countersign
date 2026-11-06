@@ -1,4 +1,4 @@
-import { $, act, api, caseCache, day, esc, fmt, st, toast } from "./core.js";
+import { $, act, api, caseCache, day, esc, fmt, plural, st, toast } from "./core.js";
 
 // Sections 4 and 5: orders with buyer claims, and the merchant desk.
 export function renderOrders() {
@@ -38,7 +38,7 @@ export function factsTable(facts) {
 export function deadlineText(d) {
   if (!d) return "";
   const urgent = d.hoursLeft < 72;
-  const left = d.hoursLeft < 0 ? `closed ${Math.abs(Math.round(d.hoursLeft / 24))} days ago` : d.hoursLeft < 48 ? `${d.hoursLeft} hours left` : `${Math.floor(d.hoursLeft / 24)} days left`;
+  const left = d.hoursLeft < 0 ? `closed ${plural(Math.abs(Math.round(d.hoursLeft / 24)), "day")} ago` : d.hoursLeft < 48 ? `${plural(d.hoursLeft, "hour")} left` : `${plural(Math.floor(d.hoursLeft / 24), "day")} left`;
   return `<p class="deadline ${urgent ? "urgent" : ""}">${esc(d.label)}: ${day(d.at)} (${left})</p>`;
 }
 
@@ -80,10 +80,18 @@ export async function loadMerchant() {
   renderMerchant();
 }
 
+/** Where the listed disputes come from. REHEARSAL- disputes are made by this app, so they never get the "Live from PayPal" line. */
+export function disputeSourceNote(sandbox, cases, hidden) {
+  if (!sandbox) return "From the simulated PayPal.";
+  const rehearsals = cases.filter((v) => v.dispute.rehearsal).length;
+  const others = hidden ? ` ${plural(hidden, "dispute")} from other visitors hidden.` : "";
+  if (rehearsals && rehearsals === cases.length) return `Rehearsal (this app; not from PayPal). Real disputes appear here live from the PayPal sandbox Disputes API.${others}`;
+  if (rehearsals) return `Live from the PayPal sandbox Disputes API, except ${rehearsals === 1 ? "the dispute" : "disputes"} marked REHEARSAL (this app; not from PayPal).${others}`;
+  return `Live from the PayPal sandbox Disputes API.${others}`;
+}
+
 export function renderMerchant() {
-  $("disputeNote").textContent = st.S?.modes.paypal === "sandbox"
-    ? `Live from the PayPal sandbox Disputes API.${st.merchant.hidden ? ` ${st.merchant.hidden} dispute(s) from other visitors hidden.` : ""}`
-    : "From the simulated PayPal.";
+  $("disputeNote").textContent = disputeSourceNote(st.S?.modes.paypal === "sandbox", st.merchant.cases, st.merchant.hidden);
   const err = st.merchant.error ? `<div class="callout err">${esc(st.merchant.error)}</div>` : "";
   const cases = [...st.merchant.cases].sort((a, b) => (a.case.deadline?.hoursLeft ?? 1e9) - (b.case.deadline?.hoursLeft ?? 1e9));
   if (!cases.length) return ($("merchantOut").innerHTML = err || `<p class="muted">No open disputes.</p>`);

@@ -7,6 +7,7 @@ import { findInjection } from "./injection.js";
 import { add, cmp, currencyInfo, formatMoney, sub, times, type Money } from "./money.js";
 import type { Policy } from "./policy.js";
 import { trustScore } from "./trust.js";
+import { plural } from "./text.js";
 
 export interface PurchaseIntent {
   id: string;
@@ -128,7 +129,7 @@ export function evaluate(intent: PurchaseIntent, ctx: GateContext): GateResult {
   if (policy.maxDeliveryDays != null) {
     if (offer.deliveryDays == null) push("delivery", "Delivery time", "ask", "Delivery estimate isn't listed.");
     else push("delivery", "Delivery time", offer.deliveryDays <= policy.maxDeliveryDays ? "pass" : "ask",
-      `Estimated ${offer.deliveryDays} days; your limit is ${policy.maxDeliveryDays}.`);
+      `Estimated ${plural(offer.deliveryDays, "day")}; your limit is ${policy.maxDeliveryDays}.`);
   }
   if (policy.requireReturns) {
     if (offer.returnDays == null) push("returns", "Returns accepted", "ask", "Return policy isn't listed.");

@@ -1,4 +1,4 @@
-import { $, act, api, caseCache, day, esc, st, toast, tz } from "./js/core.js";
+import { $, act, api, caseCache, day, esc, plural, st, toast, tz } from "./js/core.js";
 import { POLICY_PRESETS, renderBudget, renderModes, renderPolicy } from "./js/rules.js";
 import { GOALS, renderShop, runAgent } from "./js/shop.js";
 import { loadMerchant, renderOrders } from "./js/claims.js";
@@ -29,7 +29,7 @@ function boot() {
   $("goal").addEventListener("keydown", (e) => { if (e.key === "Enter") runAgent($("goal").value); });
   $("refreshDisputes").addEventListener("click", loadMerchant);
   document.querySelectorAll("[data-ff]").forEach((b) => b.addEventListener("click", async () => {
-    await act(() => api("/api/clock/advance", { days: Number(b.dataset.ff) }), `Clock moved ${b.dataset.ff} day(s) forward.`);
+    await act(() => api("/api/clock/advance", { days: Number(b.dataset.ff) }), `Clock moved ${plural(Number(b.dataset.ff), "day")} forward.`);
     caseCache.clear();
     renderOrders();
     loadMerchant();

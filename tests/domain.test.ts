@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { DEMO_OFFERS } from "../src/catalog/demoCatalog.js";
 import { AuditLog } from "../src/domain/audit.js";
-import { buyerCase, merchantCase } from "../src/domain/disputeCase.js";
+import { buyerCase, merchantCase, REHEARSAL_SOURCE } from "../src/domain/disputeCase.js";
+import { plural } from "../src/domain/text.js";
+import { trustScore } from "../src/domain/trust.js";
 import { checkDraft } from "../src/domain/draftGuard.js";
 import { evaluate, type GateContext, type PurchaseIntent } from "../src/domain/firewall.js";
 import { findInjection } from "../src/domain/injection.js";
@@ -124,6 +126,26 @@ describe("dispute cases", () => {
     expect(merchantCase(d, order("on_time"), now).action).toBe("PROVIDE_FULFILLMENT");
     expect(merchantCase(d, order("on_time"), new Date("2026-11-21T00:00:00Z")).blocked).toBe("deadline passed");
     expect(merchantCase(d, null, now).blocked).toBe("no matching order");
+  });
+  it("merchant: a rehearsal dispute never cites PayPal as the source of its facts", () => {
+    const d = { id: "REHEARSAL-ABC", reason: "MERCHANDISE_OR_SERVICE_NOT_RECEIVED", status: "WAITING_FOR_SELLER_RESPONSE", stage: "INQUIRY", amount: money("129", "USD"), createdAt: null, sellerResponseDue: "2026-11-20T00:00:00Z", captureIds: ["CAP123456789"], outcome: null, buyerNote: null };
+    const now = new Date("2026-11-10T00:00:00Z");
+    const real = merchantCase(d, order("stalled"), now).facts.slice(0, 2).map((f) => f.source);
+    expect(real).toEqual(["PayPal Disputes API", "PayPal Disputes API"]);
+    const facts = merchantCase({ ...d, rehearsal: true }, order("stalled"), now).facts;
+    expect(facts.slice(0, 2).map((f) => f.source)).toEqual([REHEARSAL_SOURCE, REHEARSAL_SOURCE]);
+    expect(REHEARSAL_SOURCE).toBe("Rehearsal (this app; not from PayPal)");
+    expect(facts.some((f) => f.source.includes("PayPal Disputes API"))).toBe(false);
+  });
+});
+
+describe("plural", () => {
+  it("renders English singular and plural, never (s)", () => {
+    expect(plural(1, "result")).toBe("1 result");
+    expect(plural(0, "result")).toBe("0 results");
+    expect(plural(3, "earlier dispute")).toBe("3 earlier disputes");
+    expect(plural(1, "day")).toBe("1 day");
+    expect(trustScore({ priorDisputes: 1, priorOrdersOk: 1, reviewCount: 1, yearsActive: 1 }).lines.join("\n")).not.toMatch(/\(s\)|\b1 \w*s\b/);
   });
 });
 

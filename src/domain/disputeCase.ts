@@ -5,6 +5,10 @@
 import { formatMoney, sub, type Money } from "./money.js";
 import { daysBetween, delivered, visibleEvents, type OrderRecord } from "./orders.js";
 import type { Dispute } from "../paypal/types.js";
+import { plural } from "./text.js";
+
+/** Fact source for REHEARSAL- disputes: they are made by this app, so never cite PayPal for them. */
+export const REHEARSAL_SOURCE = "Rehearsal (this app; not from PayPal)";
 
 export interface Fact {
   label: string;
@@ -52,15 +56,16 @@ export function buyerCase(o: OrderRecord, now: Date): CaseFile<BuyerAction> {
   facts.push({ label: "Days past promised delivery", value: String(Math.floor(late)), source: "computed from promised date and today" });
   return {
     action: "FILE_NOT_RECEIVED",
-    rationale: `No delivery scan ${Math.floor(late)} days after the promised date.`,
+    rationale: `No delivery scan ${plural(Math.floor(late), "day")} after the promised date.`,
     facts, deadline, blocked: null,
   };
 }
 
 export function merchantCase(d: Dispute, o: OrderRecord | null, now: Date): CaseFile<MerchantAction> {
+  const src = d.rehearsal ? REHEARSAL_SOURCE : "PayPal Disputes API";
   const facts: Fact[] = [
-    { label: "Dispute", value: `${d.id} (${prettyReason(d.reason)})`, source: "PayPal Disputes API" },
-    { label: "Status", value: `${d.status}${d.stage ? ` / ${d.stage}` : ""}`, source: "PayPal Disputes API" },
+    { label: "Dispute", value: `${d.id} (${prettyReason(d.reason)})`, source: src },
+    { label: "Status", value: `${d.status}${d.stage ? ` / ${d.stage}` : ""}`, source: src },
   ];
   if (d.amount) facts.push({ label: "Disputed amount", value: formatMoney(d.amount), source: "dispute_amount" });
   const due = d.sellerResponseDue ? new Date(d.sellerResponseDue) : null;
@@ -103,7 +108,7 @@ function baseFacts(o: OrderRecord, now: Date): Fact[] {
     { label: "Item", value: `${o.quantity} x ${o.offer.title}`, source: `order ${o.id}` },
     { label: "Paid", value: formatMoney(o.total), source: `PayPal capture ${o.paypal.captureId}` },
     { label: "Paid on", value: day(o.placedAt), source: `PayPal capture ${o.paypal.captureId}` },
-    { label: "Promised delivery", value: day(o.shipment.promisedBy), source: `listing estimate ${o.offer.deliveryDays ?? "?"} days` },
+    { label: "Promised delivery", value: day(o.shipment.promisedBy), source: `listing estimate ${o.offer.deliveryDays == null ? "? days" : plural(o.offer.deliveryDays, "day")}` },
     { label: "Tracking", value: `${o.shipment.carrier} ${o.shipment.trackingNumber}`, source: "added to the PayPal order" },
     { label: "Last carrier scan", value: last ? `${last.status.replace(/_/g, " ").toLowerCase()} at ${last.where}, ${day(last.at)}` : "none", source: `${o.shipment.carrier} tracking` },
   ];

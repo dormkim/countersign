@@ -1,4 +1,4 @@
-import { $, ZERO_DEC, act, api, day, esc, fmt, st } from "./core.js";
+import { $, ZERO_DEC, act, api, day, esc, fmt, plural, st } from "./core.js";
 
 // Header, rules (section 1) and the daily PayPal budget (section 2).
 export function renderModes() {
@@ -9,7 +9,7 @@ export function renderModes() {
     `<span class="chip ${m.channel3 ? "live" : "off"}">Catalog: <b>${m.channel3 ? "Channel3 + demo" : "Demo store"}</b></span>`,
   ].join("");
   const now = new Date(st.S.now);
-  $("clock").innerHTML = `${now.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" })}${st.S.clockOffsetDays ? ` <b>(+${st.S.clockOffsetDays} days, simulated)</b>` : ""}`;
+  $("clock").innerHTML = `${now.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" })}${st.S.clockOffsetDays ? ` <b>(+${plural(st.S.clockOffsetDays, "day")}, simulated)</b>` : ""}`;
 }
 
 export const POLICY_PRESETS = {
@@ -29,7 +29,7 @@ export function rulesGrid(p) {
     cell("Blocked", esc(p.blockedCategories.join(", ").replace(/_/g, " ") || "none")),
     cell("Seller trust", `${p.minMerchantTrust}/100 min; unknown: ${p.unknownMerchant}`),
     cell("Hours", p.hours ? `${p.hours.start}-${p.hours.end} (${esc(p.hours.tz)})` : "any time"),
-    cell("Delivery", p.maxDeliveryDays ? `within ${p.maxDeliveryDays} days` : "no limit"),
+    cell("Delivery", p.maxDeliveryDays ? `within ${plural(p.maxDeliveryDays, "day")}` : "no limit"),
     cell("Returns", p.requireReturns ? "required" : "not required"),
   ].join("")}</div>`;
 }

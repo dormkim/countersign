@@ -9,6 +9,8 @@ export const fmt = (m) => {
   try { return new Intl.NumberFormat("en-US", { style: "currency", currency: m.currency, minimumFractionDigits: d, maximumFractionDigits: d }).format(m.minor / 10 ** d); }
   catch { return `${m.minor / 10 ** d} ${m.currency}`; }
 };
+/** English count phrase: plural(1, "result") -> "1 result", plural(2, "result") -> "2 results". Mirrors src/domain/text.ts. */
+export const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 export const day = (iso) => (iso ? iso.slice(0, 10) : "-");
 export const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Los_Angeles";
 

@@ -1,5 +1,6 @@
 // Merchant trust is a transparent sum of signals, not a model's opinion.
 // No signals at all means "unknown" (null), which is different from "low".
+import { plural } from "./text.js";
 
 export interface MerchantSignals {
   rating?: number | null; // 0-5
@@ -30,13 +31,13 @@ export function trustScore(s: MerchantSignals): TrustScore {
     seen++;
     const pts = s.reviewCount >= 1000 ? 12 : s.reviewCount >= 100 ? 6 : s.reviewCount >= 10 ? 0 : -10;
     score += pts;
-    lines.push(`${s.reviewCount} reviews -> ${sign(pts)}`);
+    lines.push(`${plural(s.reviewCount, "review")} -> ${sign(pts)}`);
   }
   if (s.yearsActive != null) {
     seen++;
     const pts = s.yearsActive >= 3 ? 10 : s.yearsActive >= 1 ? 3 : -15;
     score += pts;
-    lines.push(`${s.yearsActive < 1 ? "under 1 year" : `${s.yearsActive} years`} trading -> ${sign(pts)}`);
+    lines.push(`${s.yearsActive < 1 ? "under 1 year" : plural(s.yearsActive, "year")} trading -> ${sign(pts)}`);
   }
   if (s.domainMatchesName === false) {
     seen++;
@@ -47,13 +48,13 @@ export function trustScore(s: MerchantSignals): TrustScore {
     seen++;
     const pts = Math.min(10, s.priorOrdersOk * 3);
     score += pts;
-    lines.push(`${s.priorOrdersOk} earlier orders delivered fine -> ${sign(pts)}`);
+    lines.push(`${plural(s.priorOrdersOk, "earlier order")} delivered fine -> ${sign(pts)}`);
   }
   if (s.priorDisputes) {
     seen++;
     const pts = -12 * s.priorDisputes;
     score += pts;
-    lines.push(`${s.priorDisputes} earlier dispute(s) -> ${sign(pts)}`);
+    lines.push(`${plural(s.priorDisputes, "earlier dispute")} -> ${sign(pts)}`);
   }
   if (!seen) return { score: null, lines: ["no reputation signals available"] };
   return { score: Math.max(0, Math.min(100, score)), lines };

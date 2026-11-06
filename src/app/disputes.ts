@@ -7,6 +7,7 @@ import { formatMoney } from "../domain/money.js";
 import { planShipment, type ShipPlan } from "../domain/orders.js";
 import { draftNote } from "../llm/tasks.js";
 import { REHEARSAL_PREFIX } from "../paypal/rehearsal.js";
+import { plural } from "../domain/text.js";
 import type { Dispute } from "../paypal/types.js";
 import { UserError, errText } from "./commerce.js";
 import type { Session } from "./session.js";
@@ -28,7 +29,7 @@ async function cachedDraft(s: Session, key: string, make: () => ReturnType<typeo
 export function advanceClock(s: Session, days: number) {
   if (!(days > 0 && days <= 60)) throw new UserError("Advance between 1 and 60 days.");
   s.clockOffsetMs += days * 86_400_000;
-  s.log("system", `simulated clock advanced ${days} day(s)`, { now: s.now().toISOString() });
+  s.log("system", `simulated clock advanced ${plural(days, "day")}`, { now: s.now().toISOString() });
 }
 
 /** Simulation control: change what the (simulated) carrier does with a parcel. */

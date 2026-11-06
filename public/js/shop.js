@@ -1,4 +1,4 @@
-import { $, act, api, esc, fmt, st, toast } from "./core.js";
+import { $, act, api, esc, fmt, plural, st, toast } from "./core.js";
 import { openApproval } from "./rules.js";
 
 // Section 3: the agent and the gate's decision cards.
@@ -74,7 +74,7 @@ export async function runAgent(goal) {
     const r = await act(() => api("/api/agent/run", { goal, source: $("source").value }));
     if (r?.run && !r.run.intentId) {
       // Passing on every result is a decision, not an error, unless nothing was found at all.
-      if (r.run.candidates.length) toast(`The agent passed on all ${r.run.candidates.length} result(s). Its reasons are under the search results.`);
+      if (r.run.candidates.length) toast(`The agent passed on ${r.run.candidates.length === 1 ? "the only result" : `all ${plural(r.run.candidates.length, "result")}`}. Its reasons are under the search results.`);
       else toast("The agent found nothing that fits.", true);
     }
     return r;
