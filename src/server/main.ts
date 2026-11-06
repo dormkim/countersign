@@ -1,0 +1,113 @@
+// HTTP entry point: static UI, JSON API, and the simulated PayPal approval page
+// (used only when no sandbox keys are configured).
+import { readFile } from "node:fs/promises";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { extname, join, normalize } from "node:path";
+import { fileURLToPath } from "node:url";
+import { UserError } from "../app/commerce.js";
+import { loadConfig } from "../app/config.js";
+import { SessionStore, type Session } from "../app/session.js";
+import { PayPalError } from "../paypal/types.js";
+import { routes } from "./routes.js";
+import { approvalPage } from "./simApproval.js";
+
+const here = fileURLToPath(new URL(".", import.meta.url));
+const PUBLIC = [join(here, "../../public"), join(here, "../../../public")];
+const TYPES: Record<string, string> = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon" };
+
+const cfg = loadConfig();
+const store = new SessionStore(cfg);
+
+function session(req: IncomingMessage, res: ServerResponse): Session {
+  const sid = /(?:^|;\s*)cs_sid=([\w-]+)/.exec(req.headers.cookie ?? "")?.[1];
+  const s = store.get(sid);
+  if (s.id !== sid) res.setHeader("Set-Cookie", `cs_sid=${s.id}; Path=/; HttpOnly; SameSite=Lax; Max-Age=21600`);
+  return s;
+}
+
+async function body(req: IncomingMessage): Promise<Record<string, unknown>> {
+  if (req.method !== "POST") return {};
+  let size = 0;
+  const chunks: Buffer[] = [];
+  for await (const c of req) {
+    size += (c as Buffer).length;
+    if (size > 64_000) throw new UserError("Request too large.");
+    chunks.push(c as Buffer);
+  }
+  const text = Buffer.concat(chunks).toString("utf8");
+  if (!text) return {};
+  const ct = req.headers["content-type"] ?? "";
+  if (ct.includes("application/x-www-form-urlencoded")) return Object.fromEntries(new URLSearchParams(text));
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    throw new UserError("Body must be JSON.");
+  }
+}
+
+function send(res: ServerResponse, status: number, data: unknown) {
+  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+  res.end(JSON.stringify(data));
+}
+
+async function serveStatic(res: ServerResponse, path: string) {
+  const rel = normalize(path === "/" ? "/index.html" : path).replace(/^(\.\.[/\\])+/, "");
+  for (const root of PUBLIC) {
+    try {
+      const file = await readFile(join(root, rel));
+      res.writeHead(200, { "Content-Type": TYPES[extname(rel)] ?? "application/octet-stream", "Cache-Control": "no-cache" });
+      res.end(file);
+      return;
+    } catch { /* try next root */ }
+  }
+  res.writeHead(404, { "Content-Type": "text/plain" }).end("Not found");
+}
+
+const server = createServer(async (req, res) => {
+  const url = new URL(req.url ?? "/", "http://local");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "same-origin");
+  try {
+    if (url.pathname === "/healthz") return send(res, 200, { ok: true });
+    const s = session(req, res);
+    if (url.pathname === "/api/reset" && req.method === "POST") {
+      const fresh = store.reset(s.id);
+      res.setHeader("Set-Cookie", `cs_sid=${fresh.id}; Path=/; HttpOnly; SameSite=Lax; Max-Age=21600`);
+      return send(res, 200, { ok: true });
+    }
+    const sim = /^\/sim-paypal\/approve\/([\w-]+)$/.exec(url.pathname);
+    if (sim && s.sim) {
+      const orderId = sim[1]!;
+      if (req.method === "POST") {
+        const b = await body(req);
+        if (b.choice !== "approve") return res.writeHead(302, { Location: "/?cancelled=1" }).end();
+        const back = new URL(s.sim.approve(orderId));
+        back.searchParams.set("token", orderId);
+        return res.writeHead(302, { Location: back.pathname + back.search }).end();
+      }
+      const order = await s.paypal.getOrder(orderId);
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      return res.end(approvalPage(order.id, s));
+    }
+    for (const [method, re, handler] of routes) {
+      const m = re.exec(url.pathname);
+      if (!m || method !== req.method) continue;
+      const result = await handler(s, await body(req), m.slice(1), url.searchParams);
+      if (result && typeof result === "object" && "redirect" in result) {
+        return res.writeHead(302, { Location: String((result as { redirect: string }).redirect) }).end();
+      }
+      return send(res, 200, result);
+    }
+    if (url.pathname.startsWith("/api/")) return send(res, 404, { error: "Unknown endpoint." });
+    return serveStatic(res, url.pathname);
+  } catch (err) {
+    if (err instanceof UserError) return send(res, 400, { error: err.message });
+    if (err instanceof PayPalError) return send(res, 502, { error: `PayPal ${err.status}: ${err.message}`, debugId: err.debugId });
+    console.error(err);
+    return send(res, 500, { error: `Unexpected error: ${(err as Error).message}` });
+  }
+});
+
+server.listen(cfg.port, () => {
+  console.log(`Countersign on ${cfg.publicBase}  | PayPal: ${cfg.sandbox ? "sandbox" : "simulated"} | AI: ${cfg.llm?.name ?? "offline rules"} | catalog: ${cfg.channel3 ? "Channel3 + demo" : "demo"}`);
+});

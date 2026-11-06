@@ -1,0 +1,29 @@
+# Render Blueprint: one free Node web service. Secrets are set in the Render
+# dashboard (sync: false), never in this file.
+services:
+  - type: web
+    name: countersign
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: LLM_PROVIDER
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_MODEL
+        sync: false
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_MERCHANT_EMAIL
+        sync: false
+      - key: CHANNEL3_API_KEY
+        sync: false

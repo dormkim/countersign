@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Countersign: your agent shops, you hold the pen</title>
+  <meta name="description" content="A human-controlled commerce layer for AI shopping agents, on PayPal: a payment firewall before checkout and a dispute copilot after it.">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <img src="/favicon.svg" alt="" width="28" height="28">
+      <div>
+        <strong>Countersign</strong>
+        <span class="tag">Your agent shops. You hold the pen.</span>
+      </div>
+    </div>
+    <div class="modes" id="modes" aria-label="Running mode"></div>
+    <div class="clock">
+      <span id="clock"></span>
+      <button class="ghost small" id="reset" title="Start over with an empty workspace">Reset</button>
+    </div>
+  </header>
+
+  <section class="hero" id="hero">
+    <div class="hero-text">
+      <p class="eyebrow">Agentic commerce, with a human signature</p>
+      <h1>Soon your AI agent will buy things for you. Countersign lets it, on your terms, and argues your case when an order goes wrong.</h1>
+      <p class="lede">Say your rules out loud. Approve one PayPal budget for the day. The agent shops, and every purchase passes a code-checked gate with a receipt for each decision. When a parcel never arrives, the copilot assembles the evidence and files the dispute after you approve it.</p>
+      <div class="hero-actions">
+        <button class="primary big" id="play">Play the 30-second story</button>
+        <a class="ghost big" href="#rules">Try it step by step</a>
+      </div>
+    </div>
+    <ol class="story" id="story" aria-live="polite">
+      <li data-step="rules"><b>Say the rules</b><span>AI drafts, code validates, you activate</span></li>
+      <li data-step="budget"><b>Approve one PayPal budget</b><span>Orders v2, intent AUTHORIZE</span></li>
+      <li data-step="buy"><b>Agent buys within rules</b><span>partial capture, final_capture=false</span></li>
+      <li data-step="trap"><b>Agent meets a trap</b><span>injected listing asks you; gift card blocked</span></li>
+      <li data-step="lost"><b>Parcel goes missing</b><span>tracking stalls past the promised date</span></li>
+      <li data-step="dispute"><b>Copilot files, merchant answers</b><span>Disputes API, refund with evidence</span></li>
+    </ol>
+  </section>
+
+  <div class="layout">
+    <nav class="side" aria-label="Sections">
+      <a href="#rules"><i>1</i>Rules</a>
+      <a href="#budget"><i>2</i>PayPal budget</a>
+      <a href="#shop"><i>3</i>Agent and gate</a>
+      <a href="#orders"><i>4</i>Orders and claims</a>
+      <a href="#merchant"><i>5</i>Merchant desk</a>
+      <a href="#split"><i>+</i>Split a purchase</a>
+      <a href="#audit"><i>#</i>Audit log</a>
+    </nav>
+
+    <main>
+      <section id="rules" class="panel">
+        <header><h2>1. Tell the agent your rules</h2><p>Plain English. A model drafts structured rules; code checks every number against what you typed and asks about anything unclear. Nothing is active until you press Activate.</p></header>
+        <div class="presets" id="presets"></div>
+        <textarea id="policyText" rows="4" placeholder="e.g. Up to $60 per purchase and $150 a day. Ask me before anything over $40. No gift cards. Only shop between 8am and 10pm, and returns must be accepted."></textarea>
+        <div class="row"><button class="primary" id="draft">Draft rules</button><span class="muted" id="draftBy"></span></div>
+        <div id="policyOut"></div>
+      </section>
+
+      <section id="budget" class="panel">
+        <header><h2>2. Approve today's PayPal budget</h2><p>One PayPal approval covers the day. Countersign creates an order with intent AUTHORIZE; each purchase that passes the gate captures only its own amount (<code>final_capture: false</code>). Unused budget is released with a void.</p></header>
+        <div id="budgetOut"></div>
+      </section>
+
+      <section id="shop" class="panel">
+        <header><h2>3. Send the agent shopping</h2><p>The agent searches and picks. The gate re-reads the listing itself and checks price, currency, caps, category, seller, hours, delivery, returns and suspicious listing text. Allowed purchases are paid at once; anything unclear waits for you.</p></header>
+        <div class="row wrap">
+          <input id="goal" placeholder="What should the agent buy?" aria-label="Shopping goal">
+          <select id="source" aria-label="Product source"></select>
+          <button class="primary" id="runAgent">Run agent</button>
+        </div>
+        <div class="presets" id="goals"></div>
+        <div id="shopOut"></div>
+      </section>
+
+      <section id="orders" class="panel">
+        <header><h2>4. Orders, tracking and claims</h2><p>Every order is tied to its PayPal capture and tracking number. If something goes wrong, the copilot builds the case from those records and drafts the claim; you approve the exact text before anything is filed.</p></header>
+        <div class="row"><span class="muted">Simulated clock (for carrier events and deadlines):</span><button class="small" data-ff="1">+1 day</button><button class="small" data-ff="3">+3 days</button><button class="small" data-ff="7">+7 days</button></div>
+        <div id="ordersOut"></div>
+      </section>
+
+      <section id="merchant" class="panel">
+        <header><h2>5. Merchant desk</h2><p>The same engine from the seller's side: PayPal disputes, matched to orders, ranked by deadline, with a recommended response and a draft. Submitting calls the Disputes API.</p></header>
+        <div class="row"><button id="refreshDisputes">Refresh disputes</button><span class="muted" id="disputeNote"></span></div>
+        <div id="merchantOut"></div>
+      </section>
+
+      <section id="split" class="panel">
+        <header><h2>Optional: split a shared purchase</h2><p>Code splits to the cent (largest remainder). PayPal has no public person-to-person request API, so each share is requested with a PayPal invoice.</p></header>
+        <div id="splitOut"></div>
+      </section>
+
+      <section id="audit" class="panel">
+        <header><h2>Audit log</h2><p>Every draft, verdict, approval and PayPal call, hash-chained so an edited entry breaks the chain.</p></header>
+        <div id="auditOut"></div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+  <footer class="foot">Countersign, built for the PayPal AI Hackathon 2026. Demo stores and products are fictional. MIT licensed.</footer>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

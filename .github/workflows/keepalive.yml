@@ -1,0 +1,13 @@
+# Pings the hosted demo so judges don't hit a cold start on Render's free plan.
+# Set the repository variable DEMO_URL (Settings > Variables) to enable it.
+name: keepalive
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+jobs:
+  ping:
+    if: ${{ vars.DEMO_URL != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl -fsS --max-time 60 "${{ vars.DEMO_URL }}/healthz"
