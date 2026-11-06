@@ -59,6 +59,8 @@ export interface Dispute {
   captureIds: string[]; // disputed_transactions[].seller_transaction_id
   outcome: string | null; // dispute_outcome.outcome_code
   buyerNote: string | null;
+  /** True only for sandbox rehearsal disputes (src/paypal/rehearsal.ts): never in PayPal. */
+  rehearsal?: boolean;
 }
 
 export interface EvidenceInput {

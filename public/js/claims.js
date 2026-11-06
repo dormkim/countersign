@@ -28,6 +28,7 @@ export function renderOrders() {
   }));
   box.querySelectorAll("[data-case]").forEach((b) => b.addEventListener("click", () => loadCase(b.dataset.case)));
   box.querySelectorAll("[data-file]").forEach((b) => b.addEventListener("click", () => fileClaim(b.dataset.file)));
+  box.querySelectorAll("[data-rehearse]").forEach((b) => b.addEventListener("click", () => fileClaim(b.dataset.rehearse, true)));
 }
 
 export function factsTable(facts) {
@@ -48,7 +49,7 @@ export function caseBox(c, o) {
     ${deadlineText(k.deadline)}${factsTable(k.facts)}
     ${c.draft ? `<label>Note to PayPal <span class="by">drafted by ${esc(c.draft.by)}${c.draft.note ? `; ${esc(c.draft.note)}` : ""}</span><textarea id="note-${o.id}" rows="4">${esc(c.draft.value)}</textarea></label>` : ""}
     ${can ? `<div class="row"><button class="primary" data-file="${o.id}">Approve and file with PayPal</button><span class="muted">Nothing is filed until you press this.</span></div>` : ""}
-    ${c.instructions ? `<div class="callout w">${esc(c.instructions)}</div>` : ""}</div>`;
+    ${c.instructions ? `<div class="callout w">${esc(c.instructions)}${c.rehearsalAvailable && !o.disputeId ? `<div class="row"><button class="small" data-rehearse="${o.id}">Open a rehearsal dispute</button></div>` : ""}</div>` : ""}</div>`;
 }
 
 export async function loadCase(orderId) {
@@ -60,12 +61,15 @@ export async function loadCase(orderId) {
   } catch (e) { toast(e.message, true); }
 }
 
-export async function fileClaim(orderId) {
+export async function fileClaim(orderId, rehearse = false) {
   const note = $(`note-${orderId}`)?.value ?? "";
-  const r = await act(() => api(`/api/orders/${orderId}/file`, { note }));
+  const r = await act(() => api(`/api/orders/${orderId}/file`, { note, rehearse }));
   const c = caseCache.get(orderId);
-  if (r?.filed) { caseCache.delete(orderId); toast(`Dispute ${r.dispute.id} opened. See the merchant desk.`); await loadMerchant(); }
-  else if (r && c) { c.instructions = r.instructions; renderOrders(); }
+  if (r?.filed) {
+    caseCache.delete(orderId);
+    toast(r.rehearsal ? `Rehearsal dispute ${r.dispute.id} opened (not in PayPal). See the merchant desk.` : `Dispute ${r.dispute.id} opened. See the merchant desk.`);
+    await loadMerchant();
+  } else if (r && c) { c.instructions = r.instructions; c.rehearsalAvailable = r.rehearsalAvailable; renderOrders(); }
   return r;
 }
 
@@ -80,17 +84,18 @@ export function renderMerchant() {
   $("disputeNote").textContent = st.S?.modes.paypal === "sandbox"
     ? `Live from the PayPal sandbox Disputes API.${st.merchant.hidden ? ` ${st.merchant.hidden} dispute(s) from other visitors hidden.` : ""}`
     : "From the simulated PayPal.";
-  if (st.merchant.error) return ($("merchantOut").innerHTML = `<div class="callout err">${esc(st.merchant.error)}</div>`);
+  const err = st.merchant.error ? `<div class="callout err">${esc(st.merchant.error)}</div>` : "";
   const cases = [...st.merchant.cases].sort((a, b) => (a.case.deadline?.hoursLeft ?? 1e9) - (b.case.deadline?.hoursLeft ?? 1e9));
-  if (!cases.length) return ($("merchantOut").innerHTML = `<p class="muted">No open disputes.</p>`);
-  $("merchantOut").innerHTML = cases.map((v) => {
+  if (!cases.length) return ($("merchantOut").innerHTML = err || `<p class="muted">No open disputes.</p>`);
+  $("merchantOut").innerHTML = err + cases.map((v) => {
     const d = v.dispute, k = v.case;
-    return `<article class="order"><div class="top-line"><div><b>${esc(d.id)}</b> · ${esc(d.reason.replace(/_/g, " ").toLowerCase())}<div class="muted">${esc(d.status)}${d.stage ? ` / ${esc(d.stage)}` : ""} · ${fmt(d.amount)}${v.orderId ? ` · order ${esc(v.orderId)}` : ""}</div></div>
+    const rh = d.rehearsal ? `<div class="callout w">REHEARSAL dispute: kept in this app because sandbox buyers can only open disputes by hand in the Resolution Center. Nothing here is sent to the PayPal Disputes API; a refund it leads to is a real sandbox refund (Payments v2).</div>` : "";
+    return `<article class="order">${rh}<div class="top-line"><div><b>${esc(d.id)}</b> · ${esc(d.reason.replace(/_/g, " ").toLowerCase())}<div class="muted">${esc(d.status)}${d.stage ? ` / ${esc(d.stage)}` : ""} · ${fmt(d.amount)}${v.orderId ? ` · order ${esc(v.orderId)}` : ""}</div></div>
       <span class="verdict ${k.blocked === "resolved" ? "ALLOW" : k.blocked ? "DENY" : "ASK"}">${esc(k.blocked === "resolved" ? "RESOLVED" : k.blocked ? k.blocked.toUpperCase() : k.action.replace(/_/g, " "))}</span></div>
       ${k.blocked === "resolved" ? "" : deadlineText(k.deadline)}<p><b>Recommendation:</b> ${esc(k.rationale)}</p>${factsTable(k.facts)}
       ${v.draft && !k.blocked ? `<label>Response <span class="by">drafted by ${esc(v.draft.by)}${v.draft.note ? `; ${esc(v.draft.note)}` : ""}</span><textarea id="mnote-${d.id}" rows="4">${esc(v.draft.value)}</textarea></label>
-        <div class="row"><button class="primary" data-submit="${d.id}" data-action="${k.action}">Approve and send to PayPal</button></div>` : ""}
-      ${d.status === "UNDER_REVIEW" ? `<div class="row"><span class="muted">Sandbox simulation (adjudicate):</span><button class="small" data-sim="${d.id}" data-out="SELLER_FAVOR">PayPal sides with seller</button><button class="small" data-sim="${d.id}" data-out="BUYER_FAVOR">PayPal sides with buyer</button></div>` : ""}
+        <div class="row"><button class="primary" data-submit="${d.id}" data-action="${k.action}">${d.rehearsal ? "Approve (rehearsal)" : "Approve and send to PayPal"}</button></div>` : ""}
+      ${d.status === "UNDER_REVIEW" ? `<div class="row"><span class="muted">${d.rehearsal ? "Rehearsal decision:" : "Sandbox simulation (adjudicate):"}</span><button class="small" data-sim="${d.id}" data-out="SELLER_FAVOR">PayPal sides with seller</button><button class="small" data-sim="${d.id}" data-out="BUYER_FAVOR">PayPal sides with buyer</button></div>` : ""}
     </article>`;
   }).join("");
   $("merchantOut").querySelectorAll("[data-submit]").forEach((b) => b.addEventListener("click", () => submitMerchant(b.dataset.submit, b.dataset.action)));

@@ -48,6 +48,11 @@ export class SandboxPayPal implements PayPalPort {
     return this.token.value;
   }
 
+  /** Fetches (or reuses) an OAuth token; used by scripts/sandbox_smoke.ts to check the keys alone. */
+  async checkAuth(): Promise<void> {
+    await this.auth();
+  }
+
   private async call(method: string, path: string, body?: Json | FormData, requestId?: string): Promise<Json> {
     const headers: Record<string, string> = { Authorization: `Bearer ${await this.auth()}`, Prefer: "return=representation" };
     if (requestId) headers["PayPal-Request-Id"] = requestId;
@@ -121,7 +126,11 @@ export class SandboxPayPal implements PayPalPort {
   }
 
   async addTracking(orderId: string, captureId: string, carrier: string, trackingNumber: string): Promise<void> {
-    await this.call("POST", `/v2/checkout/orders/${orderId}/track`, { capture_id: captureId, tracking_number: trackingNumber, carrier, notify_payer: false });
+    // checkout_orders_v2 order_tracker_request: carrier is the shipment_carrier enum;
+    // "OTHER" needs carrier_name_other.
+    const body: Json = { capture_id: captureId, tracking_number: trackingNumber, carrier, notify_payer: false };
+    if (carrier === "OTHER") body.carrier_name_other = "Other";
+    await this.call("POST", `/v2/checkout/orders/${orderId}/track`, body);
   }
 
   private dispute(j: Json): Dispute {
@@ -168,7 +177,9 @@ export class SandboxPayPal implements PayPalPort {
   }
 
   async acceptClaim(id: string, note: string, refund: Money | null): Promise<void> {
-    const input: Json = { note: note.slice(0, 2000), accept_claim_type: "REFUND" };
+    // customer_disputes_v1 accept_claim_type: REFUND must omit refund_amount;
+    // a smaller amount is PARTIAL_REFUND with refund_amount.
+    const input: Json = { note: note.slice(0, 2000), accept_claim_type: refund ? "PARTIAL_REFUND" : "REFUND" };
     if (refund) input.refund_amount = amountJson(refund);
     const form = new FormData();
     form.append("input", new Blob([JSON.stringify(input)], { type: "application/json" }));
@@ -193,7 +204,8 @@ export class SandboxPayPal implements PayPalPort {
   async createInvoice(i: InvoiceInput): Promise<InvoiceRef> {
     const j = await this.call("POST", "/v2/invoicing/invoices", {
       detail: { currency_code: i.currency, invoice_number: i.invoiceNumber, note: i.note.slice(0, 4000) },
-      invoicer: { email_address: this.merchantEmail },
+      // invoicer is optional in invoicing_v2; an empty email_address would fail validation.
+      ...(this.merchantEmail ? { invoicer: { email_address: this.merchantEmail } } : {}),
       primary_recipients: [{ billing_info: { email_address: i.recipientEmail, name: { given_name: i.recipientName } } }],
       items: i.items.map((it) => ({ name: it.name.slice(0, 200), quantity: "1", unit_amount: amountJson(it.amount) })),
     });

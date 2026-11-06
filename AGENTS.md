@@ -29,3 +29,5 @@
 - Anthropic structured output 스키마에 `type: [t, "null"]` + enum null 조합을 쓰면 400. `anyOf`로 쓴다.
 - 데모 상점 신뢰 점수는 함정 시나리오와 맞물려 있다(SoundPeak는 통과 점수여야 «주입 문구만으로 ASK»가 보인다).
 - sandbox 모드에서 판매자 계정은 모든 방문자가 공유한다 → 판매자 화면은 자기 세션 주문의 분쟁만 보인다.
+- sandbox에서 실제 분쟁이 없으면 «리허설 분쟁»(`src/paypal/rehearsal.ts`, id `REHEARSAL-`)으로 이어간다. 분쟁 자체는 PayPal에 안 가고, 환불만 실제 sandbox 환불(Payments v2). 화면·로그에 리허설이라고 표시한다 — 실제 분쟁처럼 보이게 하지 말 것.
+- sandbox 키 확인: `npm run smoke:sandbox`(토큰+AUTHORIZE 주문+승인 링크), 승인 뒤 `npm run smoke:sandbox -- <orderId>`(부분 캡처 2회+void).

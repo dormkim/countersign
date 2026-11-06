@@ -11,6 +11,7 @@ import type { CompileResult, Policy } from "../domain/policy.js";
 import { localDay } from "./time.js";
 import type { LLM } from "../llm/provider.js";
 import type { Screen } from "../llm/tasks.js";
+import { RehearsalDisputes } from "../paypal/rehearsal.js";
 import { SimulatedPayPal } from "../paypal/simulated.js";
 import type { PayPalPort } from "../paypal/types.js";
 import type { Config } from "./config.js";
@@ -60,6 +61,8 @@ export class Session {
   readonly audit = new AuditLog();
   readonly paypal: PayPalPort;
   readonly sim: SimulatedPayPal | null;
+  /** Sandbox mode only: labeled stand-in disputes while no real Resolution Center dispute exists. */
+  readonly rehearsal: RehearsalDisputes | null;
   clockOffsetMs = 0;
   lastSeen = Date.now();
   policy: PolicyState = { text: "", tz: "America/Los_Angeles", draft: null, draftedBy: "", draftNote: null, active: null, activatedAt: null };
@@ -75,9 +78,11 @@ export class Session {
     if (cfg.sandbox) {
       this.paypal = cfg.sandbox;
       this.sim = null;
+      this.rehearsal = new RehearsalDisputes(() => this.now());
     } else {
       this.sim = new SimulatedPayPal(() => this.now(), `${cfg.publicBase}/sim-paypal/approve`);
       this.paypal = this.sim;
+      this.rehearsal = null;
     }
   }
 

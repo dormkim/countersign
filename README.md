@@ -116,7 +116,7 @@ Requirements: Node 20 or newer.
 ```bash
 npm install
 npm run dev          # http://localhost:3000, no keys needed
-npm test             # 21 unit tests
+npm test             # 24 unit tests
 npm run eval         # 28 end-to-end scenarios
 ```
 
@@ -130,8 +130,9 @@ set -a; source .env; set +a; npm run dev
 
 1. At developer.paypal.com, create a sandbox REST app. Use **United States** sandbox Business and Personal accounts (accounts in some other countries can't complete payments in sandbox).
 2. Put the app's client ID and secret in `PAYPAL_CLIENT_ID` / `PAYPAL_CLIENT_SECRET`, the Business account's email in `PAYPAL_MERCHANT_EMAIL` (Invoicing returns `USER_NOT_FOUND` if it doesn't match), and your public URL in `PUBLIC_BASE_URL` (PayPal sends the buyer back to it).
-3. Approve budgets and checkouts with the sandbox Personal account.
-4. Buyers can't open disputes through the public API. In sandbox, log in to sandbox.paypal.com as the Personal account, open the Resolution Center for the transaction and paste the note the copilot drafted; then press "Refresh disputes" on the merchant desk. In simulated mode this step is simulated.
+3. Check the keys in one command: `npm run smoke:sandbox` gets a token, creates a $5 AUTHORIZE order and prints the approval link. After approving with the sandbox Personal account, `npm run smoke:sandbox -- <orderId>` authorizes it, makes two $1 partial captures with `final_capture: false` and voids the rest. It never prints the keys or the token.
+4. Approve budgets and checkouts with the sandbox Personal account.
+5. Buyers can't open disputes through the public API. In sandbox, log in to sandbox.paypal.com as the Personal account, open the Resolution Center for the transaction and paste the note the copilot drafted; then press "Refresh disputes" on the merchant desk. If no real dispute exists yet, the app offers a **rehearsal dispute**: it stays in the app's memory (id `REHEARSAL-…`, labeled on screen), is never sent to the Disputes API, and any refund it leads to is a real sandbox refund through `POST /v2/payments/captures/{id}/refund`. The 30-second story uses it in sandbox mode. In simulated mode this whole step is simulated.
 
 ## Evaluation
 
@@ -162,7 +163,7 @@ Countersign is a new project, started on 2026-11-06 during the hackathon submiss
 
 Known limits:
 - The carrier is simulated (tracking numbers are generated and sent to PayPal's tracking endpoint in sandbox mode).
-- In sandbox mode a buyer dispute has to be opened by hand in the Resolution Center (no public API).
+- In sandbox mode a real buyer dispute has to be opened by hand in the Resolution Center (no public API). Without one, the merchant desk works on a labeled rehearsal dispute held in memory; only its refund reaches PayPal.
 - A daily authorization pays one payee, the demo store. Paying many real stores would need a saved payment method (vaulting) or each store's own PayPal checkout.
 - State lives in server memory per browser session (6-hour lifetime). That is fine for a demo, not for production.
 - The agent runs on the server and has no API route to approve its own purchases, but the person's approval is tied to the browser session, not to a separate login or a second factor.

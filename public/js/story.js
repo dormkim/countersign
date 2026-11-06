@@ -74,7 +74,12 @@ export async function play() {
     await pause(2200);
 
     storyStep("dispute", "You approve the claim. On the merchant side the same engine sees no delivery scan and recommends a refund, which PayPal pays out.");
-    const filed = await fileClaim(first.id);
+    let filed = await fileClaim(first.id);
+    if (filed && !filed.filed && filed.rehearsalAvailable) {
+      // Sandbox: no API opens a buyer dispute, so the story uses a labeled rehearsal dispute.
+      storyStep("dispute", "Sandbox buyers open disputes by hand in PayPal's Resolution Center, so this run uses a labeled rehearsal dispute. The refund at the end is a real sandbox refund.");
+      filed = await fileClaim(first.id, true);
+    }
     if (filed?.filed) {
       go("merchant");
       await pause(1600);
