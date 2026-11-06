@@ -34,3 +34,4 @@
 - 승인 없는 sandbox 호출 확인: `npm run smoke:sandbox2 -- <orderId> <captureId> [<captureId2>]`(환불 $0.50·같은 PayPal-Request-Id 재전송·track·인보이스·분쟁 목록). 환불은 캡처 잔액을 쓰므로 새 캡처로 돌린다.
 - Invoicing은 REST 앱에서 **Invoicing 기능을 켜야** 한다. 꺼져 있으면 토큰에 invoicing scope가 없어 모든 호출이 `403 NOT_AUTHORIZED`(2026-11-06 실측, 키 문제처럼 보이니 주의). `rest.ts`가 이 403에 설정 안내를 붙인다.
 - `REHEARSAL-` id는 세션에 없어도 PayPal로 보내지 않는다(`disputes.ts`의 `fetchDispute`).
+- 앱 기능(Invoicing 등)을 켠 뒤에도 PayPal은 기존 토큰(약 9시간)을 그대로 돌려줘 scope가 안 바뀐다. `POST /v1/oauth2/token/terminate`(token=현재 토큰)로 끊고 새로 받으면 바로 반영된다(2026-11-06 실측: Invoicing 403 → SENT).
