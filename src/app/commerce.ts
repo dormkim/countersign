@@ -5,7 +5,7 @@ import { evaluate, type PurchaseIntent } from "../domain/firewall.js";
 import { formatMoney, parseMoney, type Money } from "../domain/money.js";
 import { planShipment, type OrderRecord } from "../domain/orders.js";
 import { compilePolicy } from "../domain/policy.js";
-import { draftPolicy, pickProduct } from "../llm/tasks.js";
+import { draftPolicy, pickProduct, screenListing, type Screen } from "../llm/tasks.js";
 import { PayPalError } from "../paypal/types.js";
 import type { IntentRecord, Session } from "./session.js";
 import { validTimeZone } from "./time.js";
@@ -104,15 +104,18 @@ export async function runAgent(s: Session, goal: string, source: "demo" | "chann
   s.log("agent", "searched and picked", { catalog: catalog.name, query: goal, results: offers.length, pick: pick.value.offerId, by: pick.by, note: pick.note });
   if (!pick.value.offerId) return { candidates: offers, record: null, ms: Date.now() - t0 };
   const chosen = offers.find((o) => o.id === pick.value.offerId)!;
+  // The pick call already screened every listing; reuse it instead of a second model call.
+  const flag = pick.value.flags[chosen.id];
+  const screen: Screen | undefined = pick.by === "rules" ? undefined : { flagged: Boolean(flag), reason: flag ?? "", by: pick.by };
   const record = await proposeIntent(s, {
     offerId: chosen.id, quantity: pick.value.quantity, claimedUnitPrice: chosen.price, agentReason: pick.value.reason, goal,
-  }, source, pick.by, pick.note);
+  }, source, pick.by, pick.note, screen);
   return { candidates: offers, record, ms: Date.now() - t0 };
 }
 
 /** The single door every purchase goes through. */
 export async function proposeIntent(
-  s: Session, i: Omit<PurchaseIntent, "id">, source: "demo" | "channel3", by = "agent", pickNote: string | null = null,
+  s: Session, i: Omit<PurchaseIntent, "id">, source: "demo" | "channel3", by = "agent", pickNote: string | null = null, screen?: Screen,
 ): Promise<IntentRecord> {
   const intent: PurchaseIntent = { ...i, id: `int_${randomUUID().slice(0, 8)}` };
   let offer: Offer | null = null;
@@ -122,8 +125,10 @@ export async function proposeIntent(
   } catch (err) {
     lookupError = errText(err);
   }
+  // Intents that did not come from a model pick get their own screen of the fresh listing text.
+  const finalScreen = !offer ? null : screen !== undefined ? screen : await screenListing(s.llm, offer.title, offer.description);
   const gate = evaluate(intent, {
-    policy: s.policy.active, offer, spentToday: s.spentToday(), now: s.now(), envelopeRemaining: s.envelopeRemaining(),
+    policy: s.policy.active, offer, spentToday: s.spentToday(), now: s.now(), envelopeRemaining: s.envelopeRemaining(), screen: finalScreen,
   });
   if (lookupError) gate.checks.unshift({ id: "lookup", label: "Fresh listing lookup", outcome: "fail", detail: `Lookup failed: ${lookupError}` });
   const status = gate.verdict === "ALLOW" ? "allowed" : gate.verdict === "ASK" ? "needs_you" : "denied";

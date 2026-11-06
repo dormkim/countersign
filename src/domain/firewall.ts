@@ -32,6 +32,8 @@ export interface GateContext {
   spentToday: Money | null; // in policy currency
   now: Date;
   envelopeRemaining: Money | null; // pre-approved daily authorization left
+  /** Model second opinion on the listing text; null = no model configured. Can only add an ASK. */
+  screen?: { flagged: boolean; reason: string; by: string } | null;
 }
 
 export interface GateResult {
@@ -133,9 +135,18 @@ export function evaluate(intent: PurchaseIntent, ctx: GateContext): GateResult {
 
   // 7. Untrusted text that tries to steer agents.
   const inj = findInjection(offer.title, offer.description);
+  const screen = ctx.screen ?? null;
   if (inj.length) {
     push("injection", "Listing text", "ask",
       `Listing text ${inj[0]!.reason}: "${inj[0]!.snippet}". Ignored as instructions; flagged for you.`);
+  } else if (screen?.flagged) {
+    push("injection", "Listing text", "ask", `${screen.by} flagged the listing text: ${screen.reason}. Ignored as instructions; flagged for you.`);
+  } else if (screen && screen.by === "unavailable") {
+    push("injection", "Listing text", "ask", `Pattern check found nothing, but the AI screen failed (${screen.reason}), so the text is unchecked.`);
+  } else {
+    push("injection", "Listing text", "pass", screen
+      ? `No instruction-like text (pattern check and ${screen.by}).`
+      : "Pattern check found no instruction-like text. No AI screen in offline mode.");
   }
 
   // 8. Funding: pre-approved envelope or a fresh PayPal approval.

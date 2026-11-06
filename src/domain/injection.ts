@@ -12,6 +12,13 @@ const PATTERNS: Array<[RegExp, string]> = [
   [/\b(?:pre-?approved|already approved) by (?:the|your) (?:user|owner|customer)\b/i, "claims prior approval"],
   [/\b(?:ai|llm|shopping|buying) (?:agents?|assistants?|bots?|models?)\s*(?:reading|seeing|processing) this\b/i, "addresses AI agents directly"],
   [/\b(?:budget|limit|limits|spending cap|allowance)\b[^.]{0,40}\b(?:raised|increased|lifted|doubled|updated|changed) (?:to|for|by)\b/i, "claims your limits changed"],
+  // Generalized after a held-out probe (eval/injection.ts) caught only 3 of 10:
+  [/\b(?:if you are an? (?:ai|bot|agent|assistant|llm)|(?:automated|autonomous) (?:purchasing |shopping |buying )?(?:systems?|agents?|buyers?)|(?:note|message|attention) (?:for|to) (?:bots?|agents?|ai|assistants?)|(?:llm|ai) agents?\s*:|assistant instructions?)/i, "addresses AI agents directly"],
+  [/\b(?:system|admin|developer)\s*[:=]|#{2,}\s*system\b/i, "poses as a system message"],
+  [/\b(?:shopper|customer|owner|user|buyer) (?:has already |have already |has |have |already )(?:authori[sz]ed|approved|confirmed|consented)\b/i, "claims prior approval"],
+  [/\b(?:disregard|override|bypass|skip|waive[ds]?|ignore)\b[^.]{0,40}\b(?:limits?|rules?|polic(?:y|ies)|checks?|budget|approval|confirmation)\b/i, "tries to override your rules"],
+  [/\b(?:budget|limit)\s*(?:override|=|:)\s*(?:unlimited|none|off|\$?\d)/i, "claims your limits changed"],
+  [/\b(?:charge|bill)\s+(?:\$|€|£)?\d[\d,.]*\s+at checkout\b/i, "tries to change the charged amount"],
 ];
 
 export interface InjectionFinding {

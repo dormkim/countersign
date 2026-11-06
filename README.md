@@ -51,7 +51,7 @@ Press **Play the 30-second story** on the first screen. It runs the whole loop a
 | Category | blocked, or not in your allowed list / cannot be placed | DENY / ASK |
 | Merchant | blocked list, trust score below your minimum / no data at all | DENY / ASK or DENY per policy |
 | Shopping hours, delivery days, returns | outside your window / slower than allowed / final sale or unknown | ASK or DENY |
-| Listing text | title or description tries to instruct an agent | ASK, with the quoted snippet |
+| Listing text | title or description tries to instruct an agent (pattern check, plus a model screen when a model is configured) | ASK, with the quoted snippet or the model's reason |
 | Funding | not enough left on today's authorization | separate PayPal checkout |
 
 Unknown is never treated as fine: missing shipping cost, missing reputation data or a missing return policy each produce ASK with the reason. Merchant trust is a transparent sum of signals (rating, review count, years trading, domain match, our own order and dispute history) and the card shows the arithmetic.
@@ -96,6 +96,7 @@ Errors are shown, not swallowed: PayPal's issue name and `debug_id` reach the UI
 |---|---|---|
 | Draft the policy from your words | your text | validates currency, amounts, categories, times; rejects any amount you never typed; turns gaps into questions |
 | Pick a product for the agent's goal | goal + listings, with seller descriptions quoted as untrusted data | checks the picked ID exists; the gate re-fetches the listing and decides |
+| Screen listing text for manipulation aimed at agents | listing title and description | a flag can only add an ASK; it never clears a failed check |
 | Write dispute notes (buyer and merchant) | decided action + case facts | number/date/ID guard; template fallback |
 
 Models are swappable by environment variable: `LLM_PROVIDER=anthropic` (default model `claude-opus-5-5`, set `ANTHROPIC_MODEL` to change) or `deepseek`. With no key the app runs a rule-based parser and templates, and the header says "AI: Offline rules". When a model call fails, the app falls back and tells you so on screen; it never pretends the model answered.
@@ -141,6 +142,15 @@ set -a; source .env; set +a; npm run dev
 | Same scenarios with Claude (`claude-opus-5-5`) drafting policies, picking and writing notes | 24/24 | median 2.4 s, max 7.6 s (model latency) |
 
 The two fixed cases are no longer unseen, so treat 24/24 as a regression baseline. `eval/drafts.ts` measures how often model-written dispute notes pass the number guard: 8 of 8 in the run above.
+
+Listing-text screening (`eval/injection.ts`) is measured separately because a pattern list is easy to overfit:
+
+| Probe | Pattern check only (offline mode) | Pattern check + Claude screen |
+|---|---|---|
+| Set A, 10 hostile / 10 benign, held out for the first version | first version caught 3/10; after generalizing the patterns on this set, 10/10, 0 false alarms | 10/10, 0 false alarms |
+| Set B, 8 hostile / 8 benign, written after that change | 1/8 caught, 1 false alarm (the false alarm was then fixed) | 8/8 caught, 1 false alarm from the pattern side before that fix |
+
+So offline, the pattern check is a weak tripwire; with a model configured, the gate also asks the model about every listing it is about to pay for (folded into the product-pick call, so no extra round trip), and either one flagging the text turns the verdict into ASK. Neither can turn a failed check into a pass, and the spending limits never depend on this detection.
 
 ## Project status and history
 
