@@ -6,7 +6,7 @@ Soon an AI agent will buy things for you: the charger you forgot, the book a fri
 
 This repository is a working build of that idea, running on the PayPal sandbox (or a built-in simulator when no keys are set), with Claude or DeepSeek for the language parts and Channel3 for real product search.
 
-- Hosted demo: _added at submission_
+- Hosted demo: https://countersign-o1l5.onrender.com (free Render instance: the first visit after idle can take about a minute to wake)
 - Video (under 3 minutes): _added at submission_
 
 ## The 30-second story
