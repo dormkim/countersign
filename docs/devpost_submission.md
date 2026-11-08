@@ -1,6 +1,6 @@
 # Devpost submission draft: Countersign
 
-Fill in the bracketed items before submitting. Every number below comes from `README.md` (Evaluation section) or from running the commands in this repository; update them if you rerun.
+Fill in the bracketed items before submitting. Channel3 has not been run with a live key yet (the recorded video uses the built-in demo catalog): keep the Channel3 lines only after `CHANNEL3_API_KEY` returns real products on the hosted demo, otherwise use the bracketed alternatives. Every number below comes from `README.md` (Evaluation section) or from running the commands in this repository; update them if you rerun.
 
 ---
 
@@ -70,7 +70,7 @@ AI is used for four jobs, all through Anthropic's Claude (`claude-opus-5-5`, via
 
 The model never decides an amount, a verdict, a deadline or whether money moves.
 
-Channel3 provides real product search (`POST /v1/search`) and a fresh product read right before payment (`GET /v1/products/{id}`).
+Channel3 provides real product search (`POST /v1/search`) and a fresh product read right before payment (`GET /v1/products/{id}`). [If no live Channel3 key: "The Channel3 adapter (`POST /v1/search`, `GET /v1/products/{id}`) is in the code; the demo and video use the built-in catalog of fictional stores."]
 
 The server is plain Node.js with no framework, and the UI is static HTML and JavaScript with no build step. Vitest covers the pure logic, and `eval/run.ts` drives full sessions through the real app flows.
 
@@ -104,7 +104,7 @@ The server is plain Node.js with no framework, and the UI is static HTML and Jav
 
 ## Built with
 
-PayPal Orders v2, PayPal Payments v2, PayPal Customer Disputes v1, PayPal Invoicing v2, PayPal REST OAuth 2.0, PayPal sandbox, Anthropic Claude (claude-opus-5-5), Anthropic TypeScript SDK, DeepSeek (optional), Channel3, TypeScript, Node.js, Vitest, tsx, HTML, CSS, JavaScript, Render [keep only if the hosted demo runs on Render]
+PayPal Orders v2, PayPal Payments v2, PayPal Customer Disputes v1, PayPal Invoicing v2, PayPal REST OAuth 2.0, PayPal sandbox, Anthropic Claude (claude-opus-5-5), Anthropic TypeScript SDK, DeepSeek (optional), Channel3 [only if run live], TypeScript, Node.js, Vitest, tsx, HTML, CSS, JavaScript, Render [keep only if the hosted demo runs on Render]
 
 ## Try it
 
@@ -134,7 +134,16 @@ npm run smoke:sandbox2 -- <orderId> <captureId> <captureId2>   # refund, trackin
 set -a; source .env; set +a; npm run dev
 ```
 
-Sandbox buyer login for approving budgets on the hosted demo: [SANDBOX PERSONAL ACCOUNT EMAIL / PASSWORD, or remove this line]
+## Testing instructions (paste into the form or the README)
+
+- Hosted demo: [HOSTED URL]. Press "Play the 30-second story", or go section by section. The header chips show which mode is live (PayPal sandbox or simulator, Claude or offline rules, Channel3 or demo catalog).
+- Approving the daily budget opens the PayPal sandbox login. Use the sandbox buyer account made for judges: [SANDBOX PERSONAL ACCOUNT EMAIL] / [PASSWORD]. It is a sandbox test account, no real money.
+- The free host may sleep when idle; the first page load can be slow.
+- No key is needed to run locally: see "Run it" above.
+
+## Sponsor tools to select on the form
+
+Only one sponsor prize can be won (Rules 8). Select Render if the hosted demo runs on Render. Select Channel3 only if the hosted demo returns live Channel3 products.
 
 ## Tools
 
@@ -143,5 +152,5 @@ This section answers the submission question about which AI tools were used and 
 - Anthropic Claude (`claude-opus-5-5`), called through the Anthropic API with JSON-schema structured output, does four jobs inside the product: drafting spending rules from the person's words, picking a product for the agent's goal, screening listing text for instructions aimed at AI agents, and writing dispute notes for the buyer and the merchant. Each answer is checked by code before it is used, as described in "How we built it". A daily cap on model calls protects the public demo; past the cap, or when a call fails, the app falls back to its rules and templates and says so on screen.
 - DeepSeek can replace Claude for the same four jobs (`LLM_PROVIDER=deepseek`).
 - PayPal REST APIs (Orders v2, Payments v2, Customer Disputes v1, Invoicing v2) in the sandbox move and return the money.
-- Channel3 product search supplies real products for the agent to choose from.
+- Channel3 product search supplies real products for the agent to choose from. [Only if run live; otherwise drop this line.]
 - Claude Code (Anthropic's coding assistant) was used while building the project to write and review code. All code in the repository was written during the hackathon submission period for this project.
