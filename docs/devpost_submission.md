@@ -108,7 +108,7 @@ PayPal Orders v2, PayPal Payments v2, PayPal Customer Disputes v1, PayPal Invoic
 
 ## Try it
 
-- Hosted demo: [HOSTED URL]
+- Hosted demo: https://countersign-o1l5.onrender.com
 - Code: [GITHUB URL]
 - Video: [YOUTUBE URL]
 
@@ -136,8 +136,8 @@ set -a; source .env; set +a; npm run dev
 
 ## Testing instructions (paste into the form or the README)
 
-- Hosted demo: [HOSTED URL]. Press "Play the 30-second story", or go section by section. The header chips show which mode is live (PayPal sandbox or simulator, Claude or offline rules, Channel3 or demo catalog).
-- Approving the daily budget opens the PayPal sandbox login. Use the sandbox buyer account made for judges: [SANDBOX PERSONAL ACCOUNT EMAIL] / [PASSWORD]. It is a sandbox test account, no real money.
+- Hosted demo: https://countersign-o1l5.onrender.com. Press "Play the 30-second story", or go section by section. The header chips show which mode is live (PayPal sandbox or simulator, Claude or offline rules, Channel3 or demo catalog).
+- Approving the daily budget opens the PayPal sandbox login. Use the sandbox buyer account made for judges: `sb-phhat53774587@personal.example.com` / `••••••••••••••••`. It is a sandbox test account, no real money.
 - The free host may sleep when idle; the first page load can be slow.
 - No key is needed to run locally: see "Run it" above.
 
