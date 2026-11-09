@@ -153,3 +153,20 @@ This section answers the submission question about which AI tools were used and 
 - DeepSeek can replace Claude for the same four jobs (`LLM_PROVIDER=deepseek`).
 - PayPal REST APIs (Orders v2, Payments v2, Customer Disputes v1, Invoicing v2) in the sandbox move and return the money.
 - Claude Code (Anthropic's coding assistant) was used while building the project to write and review code. All code in the repository was written during the hackathon submission period for this project.
+
+## Additional info: PayPal experience (draft filled 2026-11-09, user to review)
+
+- Rating: 8 / 10
+- Open to contact: Yes
+- Learning: Significant
+- Career value: Yes
+- Why:
+
+The authorize-then-capture flow in Orders v2 was the best part. One AUTHORIZE order per day plus partial captures with final_capture: false gave the agent a spending ceiling that PayPal itself enforces, and every purchase got its own capture ID that we could later match to a dispute. In sandbox, OAuth, authorize, partial captures, void, order tracking and refunds all worked from the REST reference without an SDK, and replaying the same PayPal-Request-Id returned the same refund, which is exactly what an agent that retries needs.
+
+What cost us time:
+- There is no API for a buyer to open a dispute, so the dispute write endpoints can only be tested after someone files a dispute by hand in the Resolution Center. We added a clearly labeled rehearsal dispute instead, which never calls the Disputes API.
+- Invoicing returned 403 NOT_AUTHORIZED until the Invoicing feature was switched on for the REST app. It looked like a key problem at first; a hint in the error would help.
+- Reports in the hackathon Discussions said vaulting a PayPal wallet was refused for some sandbox apps, so we did not build on vaulting.
+
+A sandbox endpoint that creates a test dispute on a capture would make agent payment projects much easier to test end to end.
