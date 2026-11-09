@@ -116,7 +116,7 @@ Run it without any keys (simulated PayPal, built-in demo catalog, rule-based par
 
 ```bash
 git clone https://github.com/dormkim/countersign
-cd [REPO FOLDER]
+cd countersign
 npm install
 npm run dev          # open http://localhost:3000 and press "Play the 30-second story"
 npm test             # unit tests
