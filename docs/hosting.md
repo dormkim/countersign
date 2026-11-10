@@ -12,3 +12,5 @@ What has to stay valid until winners are announced (2026-12-21, organizer instru
 Free-plan limits (sleep on idle, monthly instance hours) are Render's and can change; check them on the Render pricing page when deploying. Fallback if Render is unavailable: any Node 20 host that runs `npm ci && npm run build && npm start` with `PORT` set.
 
 Cost guard for the AI key: each policy draft, product pick and dispute note is one short model call with `effort: low`; notes are cached per case. To stop spending, set `LLM_PROVIDER=none` and the demo keeps working with rules and templates.
+
+GitHub's scheduled runs fired only about every 8 hours (2026-11-09 to 11-10), so the demo slept between them. Since 2026-11-10 an always-on personal box pings `/healthz` every 10 minutes (`/etc/cron.d/countersign-keepalive`, stops itself after 2026-12-22). The workflow stays as a second pinger.
