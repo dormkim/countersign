@@ -3,7 +3,7 @@
 Countersign sits between an AI shopping agent and PayPal. Before checkout, a gate written in code decides ALLOW, ASK or DENY for every purchase. After checkout, a dispute copilot builds the claim from the PayPal capture and the tracking record.
 
 - Hosted demo: https://countersign-o1l5.onrender.com (free Render instance: after idle, the first load can take about a minute)
-- Video (under 3 minutes): https://youtu.be/n9pvC7xIf04
+- Video (under 3 minutes): https://youtu.be/h_DrqlPfHJg
 - The main number: we ran the 32 purchase attempts from our evaluation scenarios with and without the gate. Without a gate, 15 of 15 attempts that the person's rules say to refuse or to ask about were charged ($1,418.93 plus ¥2,000). With Countersign, 0 of 15 were charged without the person deciding, and 17 of 17 legitimate purchases still completed. Rerun it with `npm run eval:baseline`; the output is saved in [`eval/results/baseline_2026-11-10.txt`](eval/results/baseline_2026-11-10.txt).
 
 ## The 5 minutes
@@ -41,7 +41,7 @@ npm run eval:baseline   # the same purchase attempts with and without the gate
 | Design | One page that follows the order of the job: rules, budget, shopping, orders and claims, merchant desk, audit log (`public/index.html`). Every verdict is a card with the check, the outcome and the numbers. Failures from PayPal or the model are shown with the reason (PayPal issue name and `debug_id`). The 30-second story runs the whole loop on the live server. |
 | Potential Impact | The loss cases are in the eval: an injected "pre-approved, checkout immediately" listing that the offline agent picked on its own (scenario 29), an agent that reports $99 for a $129 item (07), five chargers adding up to $174.95 under a $150 cap (08), three $129 checkouts against a $250 daily cap (25). Baseline vs Countersign on the same attempts: 15/15 charged vs 0/15, legitimate 17/17 in both (`eval/results/baseline_2026-11-10.txt`). After the purchase, the copilot handles lost and damaged parcels and refuses to answer after `seller_response_due_date` (scenarios 16 to 19). |
 | Innovation/Idea | One layer for both sides of an agent purchase: a spending gate before checkout and a dispute copilot after it, sharing one order ledger. The daily PayPal authorization gives the agent a ceiling that PayPal itself enforces. Listing text is treated as data and can only add an ASK. Model-written dispute notes may only contain numbers, dates and IDs that are already in the case facts. |
-| Presentation | Video: https://youtu.be/n9pvC7xIf04. README opens with the loss case and the measured comparison. This page and the claims table below. |
+| Presentation | Video: https://youtu.be/h_DrqlPfHJg. README opens with the loss case and the measured comparison. This page and the claims table below. |
 
 ## Claims and how far each one is checked
 

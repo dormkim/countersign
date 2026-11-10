@@ -1,6 +1,6 @@
 # Demo video script (target 2:30, hard limit under 3:00)
 
-Recorded cut: https://youtu.be/n9pvC7xIf04 (2:15, 1440x900, PayPal sandbox + Claude, demo catalog). The voiceover below matches that cut.
+Recorded cut: https://youtu.be/h_DrqlPfHJg (2:27 = 12-second opening card with the measured comparison + the 2:15 cut below, 1440x900, PayPal sandbox + Claude, demo catalog). Earlier upload without the card: https://youtu.be/n9pvC7xIf04. The voiceover below matches the 2:15 part.
 
 Recording: hosted demo or `npm run dev`, browser at 1400 px wide, PayPal sandbox keys and an AI key set if available (header chips then read "Sandbox (live API)" and "Claude"). No music. AI voiceover is allowed by the organizers.
 
