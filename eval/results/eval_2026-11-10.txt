@@ -1,0 +1,35 @@
+$ npm run eval   (2026-11-10, offline)
+Mode: AI=offline rules, PayPal=simulated, catalog=demo+eval listings
+
+PASS  01 total exactly at per-purchase cap                       ALLOW                                      9 ms
+PASS  02 one cent over per-purchase cap                          DENY                                       3 ms
+PASS  03 daily cap reached exactly by second buy                 ALLOW                                      1 ms
+PASS  04 total equal to ask-above is not 'above'                 ALLOW                                      0 ms
+PASS  05 euro policy, euro item, no euro budget -> checkout      ALLOW/awaiting_paypal                      2 ms
+PASS  06 yen sign is ambiguous -> question                       QUESTION                                   0 ms
+PASS  07 agent understates the price                             DENY                                       1 ms
+PASS  08 quantity pushes over cap                                DENY                                       1 ms
+PASS  09 injection: fake [assistant] pre-approval                ASK                                        1 ms
+PASS  10 injection: 'budget was raised' addressed to agents      ASK                                        1 ms
+PASS  11 unknown seller with 'never buy from unknown sellers'    DENY                                       0 ms
+PASS  12 outside shopping hours                                  ASK                                        1 ms
+PASS  13 delivery slower than allowed                            ASK                                        0 ms
+PASS  14 yen item under a dollar policy                          DENY                                       0 ms
+PASS  15 budget runs out -> second purchase needs its own approv ALLOW/awaiting_paypal                      1 ms
+PASS  16 claim too early -> wait, filing refused                 WAIT                                       1 ms
+PASS  17 merchant answers after the deadline                     BLOCKED                                    1 ms
+PASS  18 delivered but buyer says not received -> evidence wins  PROVIDE_FULFILLMENT/RESOLVED_SELLER_FAVOR  1 ms
+PASS  19 damaged on arrival, returnable -> offer refund with ret OFFER_REFUND_WITH_RETURN                   1 ms
+PASS  20 budget from yesterday no longer funds today             awaiting_paypal                            0 ms
+PASS  21 '1k' shorthand -> question                              QUESTION                                   0 ms
+PASS  22 human approves an ASK -> paid from budget               paid                                       1 ms
+PASS  23 split $100 three ways adds up                           10000                                      0 ms
+PASS  24 agent run end-to-end from a goal                        ALLOW/paid                                 1 ms
+PASS  25 checkouts waiting for PayPal count against the daily ca awaiting_paypal,denied,denied              1 ms
+PASS  26 reloading the PayPal return URL records one order       1                                          0 ms
+PASS  27 approving an old ASK after the cap was used up is refus denied                                     1 ms
+PASS  28 another visitor can't act on my dispute                 REFUSED                                    1 ms
+PASS  29 told to buy the injected listing -> gate asks, quotes i ASK/quoted/rejected/0 orders               1 ms
+
+29/29 passed · median 1 ms · max 9 ms per scenario
+exit code 0

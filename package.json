@@ -16,7 +16,8 @@
     "eval": "tsx eval/run.ts",
     "smoke:sandbox": "tsx scripts/sandbox_smoke.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "smoke:sandbox2": "tsx scripts/sandbox_smoke2.ts"
+    "smoke:sandbox2": "tsx scripts/sandbox_smoke2.ts",
+    "eval:baseline": "tsx eval/baseline.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.6.0"
