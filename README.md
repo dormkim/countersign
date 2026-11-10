@@ -6,7 +6,7 @@ Ask a shopping agent for "backup headphones under $70" and it can land on a $59 
 
 Soon an AI agent will buy things for you: the charger you forgot, the book a friend mentioned, the gift you keep postponing. Countersign is the layer that makes that safe enough to switch on. You say your spending rules in plain English, approve one PayPal budget for the day, and let the agent shop. Every purchase passes a gate that is plain code, not a model, and leaves a receipt that says which rule passed or failed and with what numbers. When an order goes wrong, the same layer turns around and argues your case: it builds the dispute from the PayPal capture and the tracking record, drafts the note, and files it after you approve the exact text. On the other side of the counter, a merchant gets the same engine for answering disputes before the deadline.
 
-This repository is a working build of that idea, running on the PayPal sandbox (or a built-in simulator when no keys are set), with Claude or DeepSeek for the language parts and Channel3 for real product search.
+This repository is a working build of that idea, running on the PayPal sandbox (or a built-in simulator when no keys are set), with Claude or DeepSeek for the language parts. A Channel3 product-search adapter is included but was not run with a live key; the demo uses a built-in catalog of fictional stores.
 
 - Hosted demo: https://countersign-o1l5.onrender.com (free Render instance: the first visit after idle can take about a minute to wake)
 - Video (under 3 minutes): https://youtu.be/n9pvC7xIf04
