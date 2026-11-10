@@ -110,7 +110,7 @@ PayPal Orders v2, PayPal Payments v2, PayPal Customer Disputes v1, PayPal Invoic
 
 - Hosted demo: https://countersign-o1l5.onrender.com
 - Code: https://github.com/dormkim/countersign
-- Video: [YOUTUBE URL]
+- Video: https://youtu.be/n9pvC7xIf04
 
 Run it without any keys (simulated PayPal, built-in demo catalog, rule-based parser):
 
