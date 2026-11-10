@@ -1,6 +1,6 @@
 # Demo video script (target 2:30, hard limit under 3:00)
 
-Recorded cut: `out/video2/Countersign_demo_v2.mp4` (2:15, 1440x900, PayPal sandbox + Claude, demo catalog). Scene file: `contest-kit/20261113_paypal-ai-hackathon/video/countersign.yaml`. The voiceover below matches that cut.
+Recorded cut: https://youtu.be/n9pvC7xIf04 (2:15, 1440x900, PayPal sandbox + Claude, demo catalog). The voiceover below matches that cut.
 
 Recording: hosted demo or `npm run dev`, browser at 1400 px wide, PayPal sandbox keys and an AI key set if available (header chips then read "Sandbox (live API)" and "Claude"). No music. AI voiceover is allowed by the organizers.
 

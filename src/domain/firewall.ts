@@ -160,7 +160,8 @@ export function evaluate(intent: PurchaseIntent, ctx: GateContext): GateResult {
     } else if (cmp(total, ctx.envelopeRemaining) > 0) {
       push("funding", "Funding", "ask",
         `${formatMoney(ctx.envelopeRemaining)} left on today's PayPal authorization; ${formatMoney(total)} needs a separate approval.`);
-    } else push("funding", "Funding", "pass", `Captured from today's PayPal authorization (${formatMoney(ctx.envelopeRemaining)} left).`);
+    } else push("funding", "Funding", "pass", `Today's PayPal authorization covers it (${formatMoney(ctx.envelopeRemaining)} left).`);
+  // Worded for gate time: nothing is captured yet. The UI adds the capture state (public/js/shop.js checkDetail).
   } else push("funding", "Funding", "ask", "No pre-approved PayPal budget today; you'd approve this checkout in PayPal.");
 
   return finish(checks, total);

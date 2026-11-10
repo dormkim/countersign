@@ -13,6 +13,23 @@ export const GOALS = [
   "pocket projector",
 ];
 
+// The gate's funding line is written before any money moves; say what actually
+// happened to the authorization for this purchase so an ASK card never reads "Captured".
+const FUNDING_STATE = {
+  needs_you: "Will capture from today's authorization when you approve.",
+  allowed: "Capturing from today's authorization.",
+  capturing: "Capturing from today's authorization.",
+  paid: "Captured from today's authorization.",
+  rejected: "Nothing captured.",
+  denied: "Nothing captured.",
+  payment_failed: "Capture failed.",
+};
+
+export function checkDetail(c, status) {
+  const note = c.id === "funding" && c.outcome === "pass" ? FUNDING_STATE[status] : null;
+  return note ? `${note} ${c.detail}` : c.detail;
+}
+
 export function decisionCard(r) {
   const o = r.offer;
   const g = r.gate;
@@ -22,7 +39,7 @@ export function decisionCard(r) {
       <span>${o ? `${esc(o.merchant.name)} · ${fmt(o.price)} each · qty ${r.intent.quantity}` : "listing not found"} · picked by ${esc(r.by)}</span></div>
       <div><span class="verdict ${g.verdict}">${g.verdict}</span> <span class="muted">${esc(statusText)}</span></div></div>
     <p class="why"><b>${esc(g.headline)}</b>${g.total ? ` Total ${fmt(g.total)}.` : ""} Agent's reason: "${esc(r.intent.agentReason)}"${r.pickNote ? ` <span class="by">(${esc(r.pickNote)})</span>` : ""}</p>
-    <ul class="checks">${g.checks.map((c) => `<li><span class="out ${c.outcome}">${c.outcome.toUpperCase()}</span><b>${esc(c.label)}</b><span class="d">${esc(c.detail)}</span></li>`).join("")}</ul>
+    <ul class="checks">${g.checks.map((c) => `<li><span class="out ${c.outcome}">${c.outcome.toUpperCase()}</span><b>${esc(c.label)}</b><span class="d">${esc(checkDetail(c, r.status))}</span></li>`).join("")}</ul>
     <div class="actions">
       ${r.status === "needs_you" ? `<button class="ok" data-decide="approve" data-id="${r.intent.id}">Approve and pay</button><button class="warn" data-decide="reject" data-id="${r.intent.id}">Reject</button>` : ""}
       ${r.status === "awaiting_paypal" && r.approveUrl ? `<button class="primary" data-approve="${esc(r.approveUrl)}">Approve in PayPal</button>` : ""}
