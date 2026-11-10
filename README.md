@@ -118,7 +118,7 @@ Requirements: Node 20 or newer.
 ```bash
 npm install
 npm run dev          # http://localhost:3000, no keys needed
-npm test             # 32 unit tests
+npm test             # 33 unit tests
 npm run eval         # 29 end-to-end scenarios
 npm run eval:baseline  # the same purchase attempts with and without the gate
 ```
@@ -196,7 +196,7 @@ Before submission a separate reviewer read the code cold. It found, among others
 
 ## Hosting
 
-`render.yaml` deploys one free Render web service (`npm ci && npm run build`, `npm start`, health check `/healthz`). Secrets are set in the Render dashboard. Free instances sleep when idle; `.github/workflows/keepalive.yml` pings the demo every 10 minutes once the `DEMO_URL` repository variable is set. The demo, the PayPal sandbox app and the API keys have to stay valid until winners are announced (2026-12-21).
+`render.yaml` deploys one free Render web service (`npm ci && npm run build`, `npm start`, health check `/healthz`). Secrets are set in the Render dashboard. Free instances sleep when idle, so an always-on personal box pings `/healthz` every 10 minutes (see `docs/hosting.md`); `.github/workflows/keepalive.yml` is a second pinger, though GitHub ran its schedule only every few hours. The demo, the PayPal sandbox app and the API keys have to stay valid until winners are announced (2026-12-21).
 
 ## License
 

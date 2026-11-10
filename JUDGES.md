@@ -19,6 +19,8 @@ The hosted demo runs against the PayPal sandbox with Claude (`claude-opus-5-5`).
 | 4 | Watch section 5 (Merchant desk). | In sandbox there is no API for a buyer to open a dispute, so the story uses a dispute labeled REHEARSAL. The merchant desk recommends accepting the claim (no delivery scan), and the refund goes through the real sandbox refund endpoint. |
 | 5 | Open the Audit log section. | "Chain intact" and every draft, verdict, approval and PayPal call, each with its hash. |
 
+If the PayPal window doesn't appear (popup blocked), use the "Open PayPal approval" link in section 2. To see the whole flow without any login, run it locally (`npm install && npm run dev`, no keys needed); PayPal is then simulated.
+
 Things to try by hand after the story: in section 3, run the agent with "backup headphones under $70" and press **Buy this one** on any result to send that exact listing to the gate; press **Approve and pay** or **Reject** on an ASK card; use **+1 day / +3 days / +7 days** in section 4 to move the clock, and the "Simulate carrier" menu on an order to make it arrive late or damaged.
 
 No account and no keys are needed to run it locally (simulated PayPal, demo catalog, rule-based parser):
